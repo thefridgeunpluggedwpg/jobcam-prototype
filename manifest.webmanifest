@@ -1,1 +1,35 @@
-{"id": "./", "name": "JobCam", "short_name": "JobCam", "description": "Internal job photos for Carpenter Johnny's crew", "start_url": "./", "scope": "./", "display": "standalone", "background_color": "#171c1b", "theme_color": "#b01c22", "icons": [{"src": "./icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"}, {"src": "./icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"}, {"src": "./icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}]}
+{
+ "id": "/jobcam-prototype/jobcam-app-v2",
+ "name": "JobCam",
+ "short_name": "JobCam",
+ "description": "Internal job photos for Carpenter Johnny's crew",
+ "start_url": "/jobcam-prototype/?app=1",
+ "scope": "/jobcam-prototype/",
+ "display": "standalone",
+ "background_color": "#171c1b",
+ "theme_color": "#b01c22",
+ "icons": [
+  {
+   "src": "./icons/icon-192.png",
+   "sizes": "192x192",
+   "type": "image/png",
+   "purpose": "any"
+  },
+  {
+   "src": "./icons/icon-512.png",
+   "sizes": "512x512",
+   "type": "image/png",
+   "purpose": "any"
+  },
+  {
+   "src": "./icons/icon-512.png",
+   "sizes": "512x512",
+   "type": "image/png",
+   "purpose": "maskable"
+  }
+ ],
+ "display_override": [
+  "standalone"
+ ],
+ "orientation": "portrait"
+}
