@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d7262b"/><stop offset="1" stop-color="#8f1218"/></linearGradient></defs>
+<rect width="512" height="512" fill="url(#g)"/>
+<g fill="#1a1d1c" opacity=".18"><rect x="0" y="380" width="512" height="26"/><rect x="0" y="420" width="512" height="26"/><rect x="0" y="460" width="512" height="26"/></g>
+<rect x="96" y="170" width="320" height="210" rx="34" fill="#f5f1e8"/>
+<rect x="196" y="132" width="120" height="56" rx="14" fill="#f5f1e8"/>
+<circle cx="256" cy="275" r="78" fill="#1a1d1c"/>
+<circle cx="256" cy="275" r="54" fill="#d7262b"/>
+<path d="M256 238 l9 22 h23 l-18 14 7 23 -21 -14 -21 14 7 -23 -18 -14 h23z" fill="#f5f1e8"/>
+<circle cx="368" cy="206" r="12" fill="#d7262b"/>
+<text x="256" y="110" font-family="DejaVu Sans" font-weight="bold" font-size="54" fill="#f5f1e8" text-anchor="middle" letter-spacing="4">JOBCAM</text>
+</svg>
