@@ -1,5 +1,5 @@
 /* Only public app code/assets cached. Private crew data and auth are NEVER cached here. */
-const CACHE='jobcam-shell-v2.1.0';
+const CACHE='jobcam-shell-v2.2.0';
 const ASSETS=['./','./index.html','./jobcam-prototype.html','./v2.js','./storage-adapters.js','./manifest.webmanifest','./icons/icon-192.png','./icons/icon-512.png','./icons/apple-touch-icon.png','./icons/favicon.png'];
 self.addEventListener('install',event=>{event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting()))});
 self.addEventListener('activate',event=>{event.waitUntil(self.clients.claim())});
