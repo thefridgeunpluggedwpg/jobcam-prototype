@@ -5,6 +5,7 @@
 <meta name="theme-color" content="#b01c22"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="JobCam">
 <meta name="description" content="Carpenter Johnny’s private, on-device job photo notebook. A prototype with illustrative demo projects.">
 <title>Carpenter Johnny · JobCam</title>
+<script src="./config.js"></script>
 <link rel="icon" type="image/png" href="./icons/favicon.png">
 <link rel="manifest" href="./manifest.webmanifest?v=3"><link rel="icon" href="./icons/icon-192.png"><link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Alfa+Slab+One&family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;600;700&display=swap" rel="stylesheet">
@@ -205,9 +206,10 @@ function showLockGate(){
     setTimeout(()=>input.focus(),50);
   });
 }
-async function startNotebook(){if(!(await readUnlockFlag())){await showLockGate()}else if(navigator.storage&&navigator.storage.persist){try{await navigator.storage.persist()}catch{}}setupHomeScreen();try{db=await openDB();projects=await loadAll();if(!projects.length){projects=demoProjects();await persist(projects)}}catch(err){storageOK=false;projects=projects.length?projects:demoProjects();$('#storageNote').textContent='Browser storage is unavailable. Changes cannot be saved. Export a backup before closing.';toast('Browser storage is blocked. Demo only; export before closing.')}render();await initV2()}
+async function startNotebook(){if(window.jobcamCloudConfigured&&jobcamCloudConfigured()&&(/[#&]client=/.test(location.hash)||(()=>{try{return localStorage.getItem('jobcam-client-mode')==='1'}catch{return false}})())){window.jobcamClientPending=true;document.querySelector('.bottom-nav')?.setAttribute('hidden','');if(window.JobcamClient)JobcamClient.start();return}if(!(await readUnlockFlag())){await showLockGate()}else if(navigator.storage&&navigator.storage.persist){try{await navigator.storage.persist()}catch{}}setupHomeScreen();try{db=await openDB();projects=await loadAll();if(!projects.length){projects=demoProjects();await persist(projects)}}catch(err){storageOK=false;projects=projects.length?projects:demoProjects();$('#storageNote').textContent='Browser storage is unavailable. Changes cannot be saved. Export a backup before closing.';toast('Browser storage is blocked. Demo only; export before closing.')}render();await initV2()}
 </script>
 <script src="./storage-adapters.js"></script>
 <script src="./v2.js"></script>
+<script src="./cloud.js"></script>
 </body>
 </html>
