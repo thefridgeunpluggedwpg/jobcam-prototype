@@ -1,6 +1,6 @@
 /* JobCam two-tier cloud layer (admins + client links), backed by Supabase.
    Completely inert while config.js holds placeholders: no network calls, no UI changes.
-   Admins: email+password login, stays signed in. Phone stays local-first; changes queue and upload when online.
+   Team: email+password sign-in once per phone (session persists). Photos save on the phone first, then upload to the team cloud; changes queue offline.
    Clients: per-job link/code -> read-only view of that one job. Access is enforced by Supabase RLS + Storage policies. */
 'use strict';
 (function(){
@@ -17,6 +17,13 @@ const css=document.createElement('style');css.textContent=`
 .team-box{border:2px solid var(--line);border-radius:12px;padding:14px;margin:16px 0;background:var(--panel2)}.team-box h3{margin:0 0 6px}.team-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}.team-row button{flex:1}
 .share-code{font:700 15px/1.2 ui-monospace,Menlo,monospace;letter-spacing:1.5px;word-break:break-all;color:var(--muted);text-align:center;margin:6px 0 0}.share-link{width:100%;font-size:12px!important;min-height:40px!important;margin-top:8px}.qr-card{background:#fff;color:#141110;border-radius:16px;border-top:6px solid var(--red,#c8102e);padding:16px 16px 14px;margin:14px auto 10px;max-width:330px;text-align:center;box-shadow:0 6px 24px #0007}.qr-card .qr-brand{font:400 15px/1.1 'Alfa Slab One',serif;letter-spacing:.6px;text-transform:uppercase;color:#141110}.qr-card .qr-brand small{display:block;font:700 11px/1.4 'Barlow Condensed',sans-serif;letter-spacing:1.5px;color:var(--red,#c8102e);margin-top:3px}.qr-box{margin:10px auto 6px;width:min(280px,100%)}.qr-card .qr-scan{font:700 17px/1.2 'Barlow',sans-serif;margin:6px 0 0;color:#141110}.share-secondary{display:flex;gap:8px;justify-content:center;margin-top:10px}.share-secondary button{min-height:40px!important;padding:6px 14px!important;font-size:14px!important;flex:0 1 auto}.client-install{border:2px solid var(--red,#c8102e);border-radius:12px;background:var(--panel2);padding:14px;margin:14px 0 6px}.client-install strong{font-size:18px}.client-install p{margin:4px 0 10px;font-size:14px;color:var(--muted)}.client-install.android{display:none}.can-install .client-install.android{display:block}.client-install button{min-height:52px;font-size:17px}.client-install code{white-space:nowrap;font:700 15px ui-monospace,Menlo,monospace;letter-spacing:1px;color:var(--ink)}.share-item{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-top:8px;font-size:13px}.share-item.off{opacity:.55}.share-item button{min-height:44px;padding:6px 12px}
 .client-view h1{margin:6px 0}.client-phase{margin-top:22px}.client-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.client-grid button{padding:0;border:0;background:none;min-height:0}.client-grid img{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:10px;display:block}.client-grid small{display:block;font-size:11px;margin-top:4px}.client-foot{margin:28px 0 90px;font-size:13px;color:var(--muted)}.client-code-form{margin-top:14px}.jobcam-client #viewer button:not([data-close]){display:none!important}
+#teamGate{position:fixed;inset:0;z-index:10001;display:flex;align-items:center;justify-content:center;padding:24px 18px calc(24px + env(safe-area-inset-bottom));overflow-y:auto;background:#141110;background-image:repeating-linear-gradient(0deg,rgba(255,255,255,.018) 0 2px,transparent 2px 64px),repeating-linear-gradient(90deg,rgba(0,0,0,.18) 0 1px,transparent 1px 7px,rgba(255,255,255,.012) 7px 9px,transparent 9px 23px)}#teamGate[hidden]{display:none!important}
+#teamGate .lock-card{margin:auto}#teamGate .field{display:block;margin:0 0 14px;font-weight:700;font-size:15px;color:var(--ink)}#teamGate .field input{display:block;width:100%;margin-top:6px;padding:12px 14px;font-size:17px}
+.pw-wrap{position:relative;display:block}.pw-wrap input{padding-right:84px!important}.pw-toggle{position:absolute;right:6px;top:50%;transform:translateY(-50%);margin-top:3px;min-height:40px!important;padding:0 12px;border-radius:8px;background:var(--panel2);border:1px solid #6b5848!important;color:var(--ink);font-weight:700;font-size:14px}
+#tgSubmit{width:100%;min-height:58px;font-size:20px;margin-top:4px}.tg-error{color:#ff8a9a;font-size:15px;font-weight:700;margin:0 0 12px!important;min-height:0}.tg-error:empty{display:none}.tg-error:before{content:"⚠ "}
+.tg-foot{font-size:13px!important;text-align:center;margin:14px 0 0!important}#tgInstall{display:none;width:100%;margin-top:12px;min-height:48px}.can-install #tgInstall{display:block}#tgCancel,#tgClient{width:100%;margin-top:8px;min-height:44px}
+.acct-row{display:flex;gap:12px;align-items:center}.acct-avatar{width:46px;height:46px;border-radius:50%;background:var(--red);color:#fff;display:grid;place-items:center;font:400 20px 'Alfa Slab One',serif;flex-shrink:0;border:2px solid #fff}.acct-row strong{display:block;font-size:17px}.acct-row small{display:block;color:var(--muted);word-break:break-all}
+details.backups{border:2px solid var(--line);border-radius:12px;padding:4px 14px;margin:16px 0;background:var(--panel)}details.backups summary{font:700 18px 'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:.6px;min-height:48px;display:flex;align-items:center;cursor:pointer}details.backups[open]{padding-bottom:12px}
 `;document.head.append(css);
 
 /* ---------------- Client mode (link/code) ---------------- */
@@ -31,7 +38,7 @@ function exitClient(){try{localStorage.removeItem('jobcam-client-mode')}catch{}h
 const isStandalone=()=>{try{return matchMedia('(display-mode: standalone)').matches||navigator.standalone===true}catch{return false}};
 const isIOS=()=>/iPhone|iPad|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
 function installCard(code){if(isStandalone())return '';const pretty=String(code||'').toUpperCase().replace(/[^A-Z0-9]/g,'').replace(/(.{4})(?=.)/g,'$1-');
-  if(isIOS())return '<div class="client-install ios" id="clientInstall"><strong>Keep this on your home screen</strong><p>In Safari, tap Share (the square with an arrow), then “Add to Home Screen”.'+(pretty.length===14?' If the app asks, tap “Client? Open your project with a code” and enter <code>'+h(pretty)+'</code>.':'')+'</p></div>';
+  if(isIOS())return '<div class="client-install ios" id="clientInstall"><strong>Keep this on your home screen</strong><p>In Safari, tap Share (the square with an arrow), then “Add to Home Screen”.'+(pretty.length===14?' If the home-screen app asks, tap “Opening a client project?” and enter <code>'+h(pretty)+'</code>.':'')+'</p></div>';
   return '<div class="client-install android" id="clientInstall"><strong>Get the JobCam app</strong><p>One tap adds JobCam to your home screen. It opens straight to this project.</p><button class="primary wide" id="clientInstallBtn" type="button">Install JobCam app</button></div>'}
 function bindInstallCard(){const b=q('#clientInstallBtn');if(!b)return;const done=()=>{const c=q('#clientInstall');if(c){c.classList.remove('android');c.innerHTML='<strong>JobCam is installed</strong><p>Open JobCam from your home screen any time. It goes straight to this project.</p>'}};
   b.onclick=async()=>{const p=window.jobcamInstallPrompt;if(!p)return;b.disabled=true;try{await p.prompt();const r=await p.userChoice;if(r&&r.outcome==='accepted'){window.jobcamInstallPrompt=null;document.documentElement.classList.remove('can-install');done()}}catch{}finally{b.disabled=false}};
@@ -75,8 +82,8 @@ async function startClient(){
 window.JobcamClient={start:startClient};
 if(window.jobcamClientPending){startClient();return}
 
-/* Lock gate: let a client type a code instead of the install passcode. */
-(function addGateCodeLink(){const card=q('.lock-card');if(!card||q('#gateClientBtn'))return;const wrap=document.createElement('div');wrap.innerHTML='<button class="text-btn" id="gateClientBtn" type="button" style="width:100%;margin-top:10px">Client? Open your project with a code</button><form id="gateClientForm" hidden style="margin-top:10px"><label class="field">Client code<input id="gateClientCode" autocapitalize="characters" maxlength="20" placeholder="XXXX-XXXX-XXXX" required></label><button class="secondary wide" type="submit">Open my project</button></form>';card.append(wrap);q('#gateClientBtn').onclick=()=>{q('#gateClientForm').hidden=false;q('#gateClientCode').focus()};q('#gateClientForm').onsubmit=e=>{e.preventDefault();location.hash='client='+q('#gateClientCode').value.trim();location.reload()}})();
+/* Clients get in only through their QR code / link (the code is in the URL). No code box on the team screens. */
+
 
 /* ---------------- Admin mode ---------------- */
 // Legacy single-key "crew mode" targets an older schema; the team login below replaces it.
@@ -149,18 +156,79 @@ window.addEventListener('online',()=>{if(admin)syncNow()});
 document.addEventListener('visibilitychange',()=>{if(admin&&document.visibilityState==='visible')syncNow()});
 setInterval(()=>{if(admin&&navigator.onLine&&document.visibilityState!=='hidden')syncNow()},60000);
 
+const ROLE={owner:'Owner',carpenter:'Carpenter',marketing:'Marketing'};
 async function becomeAdmin(){const client=await adminClient();const session=check(await client.auth.getSession()).session;if(!session){admin=null;teamUI();return false}
-  const row=(check(await client.rpc('am_i_admin'))||[])[0];if(!row?.is_admin){admin=null;await client.auth.signOut();teamUI('That account is not on the JobCam admin list.');return false}
-  admin={role:row.role_label};teamUI();syncNow();if(typeof current!=='undefined'&&current)renderDetail();return true}
-function teamUI(msg){const box=q('#teamBox');if(!box)return;const sn=q('#storageNote');if(sn){if(!sn.dataset.local)sn.dataset.local=sn.textContent;sn.textContent=admin?'Saved on this phone first, then copied to the private JobCam cloud for the team.':sn.dataset.local}q('#teamLogin').hidden=!!admin;q('#teamSignedIn').hidden=!admin;
-  let text=msg||'';if(!text){if(!admin)text='Admins only (Kyler, Johnny, marketing). Clients never sign in here — they get a link.';else{const label={owner:'Owner',carpenter:'Carpenter',marketing:'Marketing'}[admin.role]||'Admin';text='Signed in · '+label+'. Photos save on this phone first, then copy to the private JobCam cloud.\n'+(syncing?'Syncing…':pendingCount?pendingCount+' change'+(pendingCount===1?'':'s')+' waiting to upload'+(navigator.onLine?'':' (offline — will upload when back online)')+'.':'Everything uploaded.')+(lastSync?' Last sync '+fmtTime(lastSync)+' (UTC−5).':'')+(lastError?'\nLast problem: '+lastError:'')}}
-  q('#teamStatus').textContent=text}
-function addTeamBox(){if(q('#teamBox'))return;const legacy=q('.cloud-setup');if(legacy)legacy.hidden=true;const box=document.createElement('section');box.className='team-box';box.id='teamBox';
-  box.innerHTML='<h3>Team sign-in</h3><p class="v2-status" id="teamStatus" style="white-space:pre-line"></p><form id="teamLogin"><label class="field">Email<input id="teamEmail" type="email" autocomplete="username" required></label><label class="field">Password<input id="teamPassword" type="password" autocomplete="current-password" required minlength="6"></label><button class="primary wide" type="submit" id="teamSignIn">Sign in</button></form><div id="teamSignedIn" hidden><div class="team-row"><button class="secondary" id="teamSync" type="button">Sync now</button><button class="secondary" id="teamSignOut" type="button">Sign out</button></div></div>';
-  const anchor=q('#storageNote');anchor?anchor.after(box):q('#settingsDialog').append(box);
-  q('#teamLogin').onsubmit=async e=>{e.preventDefault();const b=q('#teamSignIn');b.disabled=true;teamUI('Signing in…');try{const client=await adminClient();const r=await client.auth.signInWithPassword({email:q('#teamEmail').value.trim(),password:q('#teamPassword').value});if(r.error)throw Error(/invalid/i.test(r.error.message)?'Wrong email or password.':r.error.message);q('#teamPassword').value='';if(await becomeAdmin())toast('Signed in. Your jobs will upload in the background.')}catch(err){teamUI(navigator.onLine?err.message:'Sign-in needs internet.')}finally{b.disabled=false}};
+  const row=(check(await client.rpc('am_i_admin'))||[])[0];if(!row?.is_admin){admin=null;await client.auth.signOut();teamUI('That account is not on the JobCam team list.');return false}
+  admin={role:row.role_label,email:session.user?.email||''};teamUI();syncNow();if(typeof current!=='undefined'&&current)renderDetail();return true}
+function friendlyAuthError(err){const m=String(err&&err.message||err||'');
+  if(!navigator.onLine||/failed to fetch|network|load failed|import|dynamically imported/i.test(m))return 'No internet connection. Signing in needs internet the first time.';
+  if(/invalid login|invalid credentials|invalid grant/i.test(m))return 'Wrong email or password. Try again.';
+  if(/not confirmed/i.test(m))return 'This email hasn’t been confirmed yet. Open the confirmation email first.';
+  if(/rate|too many/i.test(m))return 'Too many tries. Wait a minute, then try again.';
+  if(/team list/i.test(m))return m;
+  return 'Couldn’t sign in. '+m}
+/* Team sign-in screen: the one gate for the crew. Supabase keeps the session on this phone (persistSession + autoRefreshToken),
+   so a team member signs in once and never sees this again unless they sign out. */
+let gateOpen=null;
+function showGate(opts){opts=opts||{};if(gateOpen)return gateOpen;
+  let g=q('#teamGate');if(!g){g=document.createElement('div');g.id='teamGate';g.setAttribute('role','dialog');g.setAttribute('aria-modal','true');g.setAttribute('aria-labelledby','teamGateHeading');
+    const brand=q('.lock-brand')?q('.lock-brand').outerHTML:'';
+    g.innerHTML='<div class="lock-card">'+brand+'<h1 id="teamGateHeading">Team sign-in</h1><p>For Carpenter Johnny team members. Clients open their project from the QR code or link they received.</p>'
+      +'<form id="teamGateForm" novalidate><label class="field">Email<input id="tgEmail" name="email" type="email" autocomplete="email" inputmode="email" autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="next" required></label>'
+      +'<label class="field">Password<span class="pw-wrap"><input id="tgPassword" name="password" type="password" autocomplete="current-password" enterkeyhint="go" required><button class="pw-toggle" id="tgShow" type="button" aria-pressed="false" aria-label="Show password">Show</button></span></label>'
+      +'<p class="tg-error" id="tgError" role="alert" aria-live="assertive"></p><button class="primary" id="tgSubmit" type="submit">Sign in</button></form>'
+      +'<p class="tg-foot">You’ll stay signed in on this phone until you sign out.</p>'
+      +'<button class="secondary" id="tgInstall" type="button">Install JobCam app</button>'
+      +'<button class="text-btn" id="tgCancel" type="button" hidden>Not now</button>'
+      +'<button class="text-btn" id="tgClient" type="button" hidden>Opening a client project?</button><form id="tgClientForm" hidden><label class="field">Client code<input id="tgClientCode" autocapitalize="characters" maxlength="20" placeholder="XXXX-XXXX-XXXX" required></label><button class="secondary wide" type="submit">Open my project</button></form></div>';
+    document.body.append(g);
+    q('#tgShow').onclick=()=>{const pw=q('#tgPassword'),on=pw.type==='password';pw.type=on?'text':'password';q('#tgShow').textContent=on?'Hide':'Show';q('#tgShow').setAttribute('aria-pressed',String(on));q('#tgShow').setAttribute('aria-label',on?'Hide password':'Show password')};
+    q('#tgInstall').onclick=async()=>{const p=window.jobcamInstallPrompt;if(!p)return;await p.prompt();await p.userChoice;window.jobcamInstallPrompt=null;document.documentElement.classList.remove('can-install')};
+    // iPhone home-screen apps can't see the Safari link, so a client who added JobCam there gets one small fallback.
+    if(isIOS()&&isStandalone()){q('#tgClient').hidden=false;q('#tgClient').onclick=()=>{q('#tgClientForm').hidden=false;q('#tgClientCode').focus()};q('#tgClientForm').onsubmit=e=>{e.preventDefault();location.hash='client='+q('#tgClientCode').value.trim();location.reload()}}
+  }
+  const hideApp=on=>['.header','.bottom-nav','#main'].forEach(sel=>{const el=q(sel);if(!el)return;if(on)el.setAttribute('hidden','');else el.removeAttribute('hidden')});
+  g.hidden=false;hideApp(true);q('#tgError').textContent=opts.message||'';q('#tgPassword').value='';q('#tgCancel').hidden=!opts.dismissable;
+  gateOpen=new Promise(resolve=>{
+    const close=ok=>{g.hidden=true;hideApp(false);gateOpen=null;resolve(ok)};
+    q('#tgCancel').onclick=()=>close(false);
+    q('#teamGateForm').onsubmit=async e=>{e.preventDefault();const err=q('#tgError'),btn=q('#tgSubmit'),email=q('#tgEmail').value.trim(),pw=q('#tgPassword').value;
+      if(!email){err.textContent='Enter your email.';q('#tgEmail').focus();return}
+      if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){err.textContent='Enter a valid email address.';q('#tgEmail').focus();return}
+      if(!pw){err.textContent='Enter your password.';q('#tgPassword').focus();return}
+      btn.disabled=true;btn.textContent='Signing in…';err.textContent='';
+      try{const client=await adminClient();const r=await client.auth.signInWithPassword({email,password:pw});if(r.error)throw r.error;
+        const row=(check(await client.rpc('am_i_admin'))||[])[0];
+        if(!row?.is_admin){try{await client.auth.signOut()}catch{}try{localStorage.removeItem('jobcam-admin-auth')}catch{}throw Error('This account isn’t on the JobCam team list. Ask the owner to add it.')}
+        q('#tgPassword').value='';close(true)}
+      catch(e2){err.textContent=friendlyAuthError(e2);q('#tgPassword').select()}
+      finally{btn.disabled=false;btn.textContent='Sign in'}};
+    setTimeout(()=>{const em=q('#tgEmail');(em.value?q('#tgPassword'):em).focus()},60)});
+  return gateOpen}
+window.JobcamGate={show:showGate};
+function teamUI(msg){
+  const btn=q('#settingsButton'),lbl=q('#accountLabel'),stored=hasStoredSession();
+  if(btn&&lbl){if(admin){const r=ROLE[admin.role]||'Account';lbl.textContent=r;btn.classList.add('signed-in');btn.setAttribute('aria-label','Account, signed in as '+r)}else if(stored){lbl.textContent='Account';btn.classList.add('signed-in');btn.setAttribute('aria-label','Account')}else{lbl.textContent='Sign in';btn.classList.remove('signed-in');btn.setAttribute('aria-label','Team sign-in')}}
+  const sn=q('#storageNote');if(sn)sn.textContent=admin?'Photos are saved online in your team’s private cloud and sync across your team’s phones.':'Sign in to save and sync job photos online with your team.';
+  const box=q('#teamBox');if(!box)return;
+  if(admin){const r=ROLE[admin.role]||'Team member';q('#acctName').textContent='Signed in · '+r;q('#acctEmail').textContent=admin.email||'';q('#acctAvatar').textContent=(admin.email||r).charAt(0).toUpperCase()}
+  else{q('#acctName').textContent=stored?'Signed in':'Not signed in';q('#acctEmail').textContent='';q('#acctAvatar').textContent='?'}
+  q('#teamSync').hidden=!admin;q('#teamSignOut').hidden=!(admin||stored);q('#teamSignInBtn').hidden=!!(admin||stored);
+  let text=msg||'';if(!text){if(!admin)text=stored?(navigator.onLine?'Checking your sign-in…':'Offline. New photos save on this phone and upload when you’re back online.'):'';else{text=(syncing?'Syncing…':pendingCount?pendingCount+' change'+(pendingCount===1?'':'s')+' waiting to upload'+(navigator.onLine?'':' (offline — uploads when you’re back online)')+'.':'Everything is uploaded.')+(lastSync?' Last sync '+fmtTime(lastSync)+' (UTC−5).':'')+(lastError?'\nLast problem: '+lastError:'')}}
+  q('#teamStatus').textContent=text;q('#teamStatus').hidden=!text}
+async function signOutTeam(){try{await sb.auth.signOut({scope:'local'})}catch{}try{localStorage.removeItem('jobcam-admin-auth')}catch{}admin=null;location.reload()}
+function addTeamBox(){if(q('#teamBox'))return;const legacy=q('.cloud-setup');if(legacy)legacy.hidden=true;const dlg=q('#settingsDialog');
+  const box=document.createElement('section');box.className='team-box';box.id='teamBox';
+  box.innerHTML='<div class="acct-row"><span class="acct-avatar" id="acctAvatar" aria-hidden="true">?</span><div><strong id="acctName">Not signed in</strong><small id="acctEmail"></small></div></div><p class="v2-status" id="teamStatus" style="white-space:pre-line"></p><div class="team-row"><button class="primary" id="teamSignInBtn" type="button">Sign in</button><button class="secondary" id="teamSync" type="button">Sync now</button><button class="secondary" id="teamSignOut" type="button">Sign out</button></div>';
+  const heading=dlg.querySelector('.dialog-heading');heading.after(box);
+  // Backups: still available, tucked under one secondary section.
+  const det=document.createElement('details');det.className='backups';det.innerHTML='<summary>Backups</summary><p class="caption">Optional extra copy of your jobs as a file. Your photos are already saved online when you’re signed in.</p>';
+  ['#exportButton','#importButton'].forEach(id=>{const it=q(id)?.closest('.backup-item');if(it)det.append(it)});const inp=q('#importInput');if(inp)det.append(inp);
+  const install=q('#installButton')?.closest('.backup-item');(install||q('#storageNote')).after(det);
+  q('#teamSignInBtn').onclick=async()=>{dlg.close();if(await showGate({dismissable:true}))becomeAdmin().catch(()=>teamUI())};
   q('#teamSync').onclick=()=>syncNow(true);
-  q('#teamSignOut').onclick=async()=>{try{await sb.auth.signOut()}catch{}admin=null;teamUI('Signed out. Everything stays on this phone.');if(typeof current!=='undefined'&&current)renderDetail()};
+  q('#teamSignOut').onclick=signOutTeam;
+  q('#settingsButton').onclick=async()=>{if(admin||hasStoredSession()){dlg.showModal();return}if(await showGate({dismissable:true}))becomeAdmin().catch(()=>teamUI())};
   teamUI()}
 
 /* Share with client (admin, on a job) */
@@ -180,6 +248,6 @@ async function openShare(){const p=getCurrent();if(!p||!admin)return;const d=sha
 try{const innerDetail=renderDetail;renderDetail=function(){innerDetail();const p=getCurrent();if(!p||!admin||p.demo)return;const tools=q('.v2-tools');if(!tools||q('#shareClientButton'))return;const b=document.createElement('button');b.className='primary';b.id='shareClientButton';b.type='button';b.textContent='Share with client';b.style.gridColumn='1 / -1';b.onclick=openShare;tools.append(b)}}catch{}
 
 /* Boot: wait for the notebook to finish loading (after the install passcode). */
-(function boot(){if(!window.jobcamReady){setTimeout(boot,200);return}addTeamBox();const off=q('#offlineStatus');if(off)off.textContent=off.textContent.replace('Cloud mode requires a connection; it has no offline sync queue.','Team sync queues changes offline and uploads them when the phone is back online.');if(hasStoredSession()){const go=()=>becomeAdmin().catch(err=>{teamUI(navigator.onLine?'Sign-in check failed: '+err.message:'Offline. Saved changes will upload when back online.');if(!navigator.onLine)window.addEventListener('online',()=>{if(!admin)becomeAdmin().catch(()=>{})},{once:true})});go()}})();
+(function boot(){if(!window.jobcamReady){setTimeout(boot,200);return}addTeamBox();const off=q('#offlineStatus');if(off)off.textContent=off.textContent.replace('Cloud mode requires a connection; it has no offline sync queue.','');if(hasStoredSession()){const go=()=>becomeAdmin().then(async ok=>{if(!ok&&navigator.onLine&&!hasStoredSession()){if(await showGate({message:'Please sign in again.'}))becomeAdmin().catch(()=>teamUI())}}).catch(err=>{teamUI(navigator.onLine?'Couldn’t check your sign-in: '+err.message:'');if(!navigator.onLine)window.addEventListener('online',()=>{if(!admin)becomeAdmin().catch(()=>{})},{once:true})});go()}else if(navigator.onLine){showGate().then(ok=>{if(ok)becomeAdmin().catch(()=>teamUI())})}})();
 window.JobcamTeam={syncNow,state:loadState,get admin(){return admin},get pending(){return pendingCount}};
 })();
