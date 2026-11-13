@@ -2,8 +2,8 @@
    To switch on admin logins + client links, paste the Project URL and the PUBLISHABLE (or legacy anon) key
    from Supabase -> Project Settings -> API Keys. Both are public by design. NEVER paste a secret/service_role key. */
 window.JOBCAM_CONFIG={
-  SUPABASE_URL:'PASTE_SUPABASE_URL',
-  SUPABASE_ANON_KEY:'PASTE_SUPABASE_PUBLISHABLE_KEY'
+  SUPABASE_URL:'https://vawsvatqzedxstxqthbc.supabase.co',
+  SUPABASE_ANON_KEY:'sb_publishable_HRRMGbNB5oL50194Pt_RGg_VvGssi5O'
 };
 window.jobcamCloudConfigured=function(){
   const c=window.JOBCAM_CONFIG||{},url=String(c.SUPABASE_URL||''),key=String(c.SUPABASE_ANON_KEY||'');
