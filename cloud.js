@@ -20,7 +20,9 @@ const css=document.createElement('style');css.textContent=`
 #teamGate{position:fixed;inset:0;z-index:10001;display:flex;align-items:center;justify-content:center;padding:24px 18px calc(24px + env(safe-area-inset-bottom));overflow-y:auto;background:#141110;background-image:repeating-linear-gradient(0deg,rgba(255,255,255,.018) 0 2px,transparent 2px 64px),repeating-linear-gradient(90deg,rgba(0,0,0,.18) 0 1px,transparent 1px 7px,rgba(255,255,255,.012) 7px 9px,transparent 9px 23px)}#teamGate[hidden]{display:none!important}
 #teamGate .lock-card{margin:auto}#teamGate .field{display:block;margin:0 0 14px;font-weight:700;font-size:15px;color:var(--ink)}#teamGate .field input{display:block;width:100%;margin-top:6px;padding:12px 14px;font-size:17px}
 .pw-wrap{position:relative;display:block}.pw-wrap input{padding-right:84px!important}.pw-toggle{position:absolute;right:6px;top:50%;transform:translateY(-50%);margin-top:3px;min-height:40px!important;padding:0 12px;border-radius:8px;background:var(--panel2);border:1px solid #6b5848!important;color:var(--ink);font-weight:700;font-size:14px}
-#tgSubmit{width:100%;min-height:58px;font-size:20px;margin-top:4px}.tg-error{color:#ff8a9a;font-size:15px;font-weight:700;margin:0 0 12px!important;min-height:0}.tg-error:empty{display:none}.tg-error:before{content:"⚠ "}
+#tgSubmit,#tgForgotSubmit,#tgResetSubmit{width:100%;min-height:58px;font-size:20px;margin-top:4px}.tg-error{color:#ff8a9a;font-size:15px;font-weight:700;margin:0 0 12px!important;min-height:0}.tg-error:empty{display:none}.tg-error:before{content:"⚠ "}
+.tg-msg{font-size:15px;font-weight:700;margin:0 0 12px!important;color:var(--ink)}.tg-msg:empty{display:none}
+#tgForgot{display:block;width:100%;margin-top:8px;min-height:44px;text-align:center}#tgForgotBack,#tgResetForgot{display:block;width:100%;margin-top:8px;min-height:44px}
 .tg-foot{font-size:13px!important;text-align:center;margin:14px 0 0!important}#tgInstall{display:none;width:100%;margin-top:12px;min-height:48px}.can-install #tgInstall{display:block}#tgCancel,#tgClient{width:100%;margin-top:8px;min-height:44px}
 .acct-row{display:flex;gap:12px;align-items:center}.acct-avatar{width:46px;height:46px;border-radius:50%;background:var(--red);color:#fff;display:grid;place-items:center;font:400 20px 'Alfa Slab One',serif;flex-shrink:0;border:2px solid #fff}.acct-row strong{display:block;font-size:17px}.acct-row small{display:block;color:var(--muted);word-break:break-all}
 details.backups{border:2px solid var(--line);border-radius:12px;padding:4px 14px;margin:16px 0;background:var(--panel)}details.backups summary{font:700 18px 'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:.6px;min-height:48px;display:flex;align-items:center;cursor:pointer}details.backups[open]{padding-bottom:12px}
@@ -89,8 +91,37 @@ if(window.jobcamClientPending){startClient();return}
 // Legacy single-key "crew mode" targets an older schema; the team login below replaces it.
 try{connectCloud=async function(){cloudStatus('Replaced by Team sign-in above.')}}catch{}
 let sb=null,admin=null,syncing=false,syncAgain=false,syncTimer=null,lastSync=0,lastError='',pendingCount=0;
-async function adminClient(){if(sb)return sb;const {createClient}=await sdk();sb=createClient(URL_,KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:false,storageKey:'jobcam-admin-auth'}});window.jobcamAdminSB=sb;return sb}
+async function adminClient(){if(sb)return sb;const {createClient}=await sdk();sb=createClient(URL_,KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,flowType:'implicit',storageKey:'jobcam-admin-auth'}});window.jobcamAdminSB=sb;return sb}
 const hasStoredSession=()=>{try{return !!localStorage.getItem('jobcam-admin-auth')}catch{return false}};
+/* Implicit recovery links put tokens in the URL hash, so the same link works in a Chrome/Safari tab or the installed PWA (PKCE would fail when iPhone Mail opens Safari instead of the home-screen app). */
+const LIVE_APP_URL='https://thefridgeunpluggedwpg.github.io/jobcam-prototype/';
+function recoveryFromUrl(){
+  try{
+    if(/[#&]client=/.test(location.hash||''))return {kind:'none'};
+    const h=new URLSearchParams((location.hash||'').replace(/^#/,''));
+    const qs=new URLSearchParams(location.search||'');
+    const errText=h.get('error_description')||qs.get('error_description')||h.get('error')||qs.get('error')||'';
+    const errCode=h.get('error_code')||qs.get('error_code')||h.get('error')||qs.get('error')||'';
+    if(h.get('error')||qs.get('error')){
+      if(h.get('type')==='recovery'||qs.get('type')==='recovery'||/otp|recover|token|expired|access_denied/i.test(errCode))
+        return {kind:'error',message:errText||'This reset link is invalid or has expired. Request a new one.'};
+      return {kind:'none'};
+    }
+    if(h.get('access_token')&&h.get('refresh_token'))return {kind:'implicit',access_token:h.get('access_token'),refresh_token:h.get('refresh_token')};
+    if(qs.get('code'))return {kind:'pkce',code:qs.get('code')};
+    if(h.get('type')==='recovery'||qs.get('type')==='recovery')return {kind:'event'};
+  }catch{}
+  return {kind:'none'};
+}
+function cleanAuthUrl(){
+  try{
+    const qs=new URLSearchParams(location.search||'');
+    const keep=new URLSearchParams();
+    if(qs.get('app'))keep.set('app',qs.get('app'));
+    const q=keep.toString();
+    history.replaceState(null,'',location.pathname+(q?'?'+q:''));
+  }catch{}
+}
 
 // Sync bookkeeping lives in its own IndexedDB so the notebook DB is never touched by this layer's schema.
 let stateDB;function openState(){if(stateDB)return Promise.resolve(stateDB);return new Promise((res,rej)=>{const r=indexedDB.open('JobCamCloud',1);r.onupgradeneeded=()=>r.result.createObjectStore('kv');r.onsuccess=()=>{stateDB=r.result;res(stateDB)};r.onerror=()=>rej(r.error)})}
@@ -160,38 +191,63 @@ const ROLE={owner:'Owner',carpenter:'Carpenter',marketing:'Marketing'};
 async function becomeAdmin(){const client=await adminClient();const session=check(await client.auth.getSession()).session;if(!session){admin=null;teamUI();return false}
   const row=(check(await client.rpc('am_i_admin'))||[])[0];if(!row?.is_admin){admin=null;await client.auth.signOut();teamUI('That account is not on the JobCam team list.');return false}
   admin={role:row.role_label,email:session.user?.email||''};teamUI();syncNow();if(typeof current!=='undefined'&&current)renderDetail();return true}
-function friendlyAuthError(err){const m=String(err&&err.message||err||'');
-  if(!navigator.onLine||/failed to fetch|network|load failed|import|dynamically imported/i.test(m))return 'No internet connection. Signing in needs internet the first time.';
+function friendlyAuthError(err,kind){const m=String(err&&err.message||err||'');
+  if(!navigator.onLine||/failed to fetch|network|load failed|import|dynamically imported/i.test(m))return kind==='reset'?'No internet connection. Sending a reset link needs internet.':'No internet connection. Signing in needs internet the first time.';
+  if(/expired|invalid.*(otp|token|link)|otp_expired|same token/i.test(m))return 'This reset link is invalid or has expired. Request a new one.';
   if(/invalid login|invalid credentials|invalid grant/i.test(m))return 'Wrong email or password. Try again.';
   if(/not confirmed/i.test(m))return 'This email hasn’t been confirmed yet. Open the confirmation email first.';
   if(/rate|too many/i.test(m))return 'Too many tries. Wait a minute, then try again.';
+  if(/should be.*(?:at least|more than).*\d|password.*(?:short|character|weak|least 8)/i.test(m))return 'Use a password of at least 8 characters.';
   if(/team list/i.test(m))return m;
-  return 'Couldn’t sign in. '+m}
+  return (kind==='reset'?'Couldn’t send a reset link. ':kind==='password'?'Couldn’t save the new password. ':'Couldn’t sign in. ')+m}
 /* Team sign-in screen: the one gate for the crew. Supabase keeps the session on this phone (persistSession + autoRefreshToken),
    so a team member signs in once and never sees this again unless they sign out. */
 let gateOpen=null;
 function showGate(opts){opts=opts||{};if(gateOpen)return gateOpen;
   let g=q('#teamGate');if(!g){g=document.createElement('div');g.id='teamGate';g.setAttribute('role','dialog');g.setAttribute('aria-modal','true');g.setAttribute('aria-labelledby','teamGateHeading');
     const brand=q('.lock-brand')?q('.lock-brand').outerHTML:'';
-    g.innerHTML='<div class="lock-card">'+brand+'<h1 id="teamGateHeading">Team sign-in</h1><p>For Carpenter Johnny team members. Clients open their project from the QR code or link they received.</p>'
+    const pwField=(id,toggle,auto,label)=>'<label class="field">'+label+'<span class="pw-wrap"><input id="'+id+'" name="'+id+'" type="password" autocomplete="'+auto+'" enterkeyhint="go" required minlength="8"><button class="pw-toggle" id="'+toggle+'" type="button" aria-pressed="false" aria-label="Show password">Show</button></span></label>';
+    g.innerHTML='<div class="lock-card">'+brand+'<h1 id="teamGateHeading">Team sign-in</h1><p id="teamGateIntro">For Carpenter Johnny team members. Clients open their project from the QR code or link they received.</p>'
       +'<form id="teamGateForm" novalidate><label class="field">Email<input id="tgEmail" name="email" type="email" autocomplete="email" inputmode="email" autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="next" required></label>'
       +'<label class="field">Password<span class="pw-wrap"><input id="tgPassword" name="password" type="password" autocomplete="current-password" enterkeyhint="go" required><button class="pw-toggle" id="tgShow" type="button" aria-pressed="false" aria-label="Show password">Show</button></span></label>'
       +'<p class="tg-error" id="tgError" role="alert" aria-live="assertive"></p><button class="primary" id="tgSubmit" type="submit">Sign in</button></form>'
-      +'<p class="tg-foot">You’ll stay signed in on this phone until you sign out.</p>'
+      +'<button class="text-btn" id="tgForgot" type="button">Forgot password?</button>'
+      +'<form id="teamGateForgot" hidden novalidate><label class="field">Email<input id="tgForgotEmail" name="forgot-email" type="email" autocomplete="email" inputmode="email" autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="go" required></label>'
+      +'<p class="tg-error" id="tgForgotError" role="alert" aria-live="assertive"></p><p class="tg-msg" id="tgForgotMsg" role="status" aria-live="polite"></p>'
+      +'<button class="primary" id="tgForgotSubmit" type="submit">Send reset link</button><button class="text-btn" id="tgForgotBack" type="button">Back to sign-in</button></form>'
+      +'<form id="teamGateReset" hidden novalidate>'+pwField('tgNewPassword','tgShowNew','new-password','New password')+pwField('tgNewPassword2','tgShowNew2','new-password','Confirm new password')
+      +'<p class="tg-error" id="tgResetError" role="alert" aria-live="assertive"></p><button class="primary" id="tgResetSubmit" type="submit">Save new password</button><button class="text-btn" id="tgResetForgot" type="button">Request a new link</button></form>'
+      +'<p class="tg-foot" id="tgFoot">You’ll stay signed in on this phone until you sign out.</p>'
       +'<button class="secondary" id="tgInstall" type="button">Install JobCam app</button>'
       +'<button class="text-btn" id="tgCancel" type="button" hidden>Not now</button>'
       +'<button class="text-btn" id="tgClient" type="button" hidden>Opening a client project?</button><form id="tgClientForm" hidden><label class="field">Client code<input id="tgClientCode" autocapitalize="characters" maxlength="20" placeholder="XXXX-XXXX-XXXX" required></label><button class="secondary wide" type="submit">Open my project</button></form></div>';
     document.body.append(g);
-    q('#tgShow').onclick=()=>{const pw=q('#tgPassword'),on=pw.type==='password';pw.type=on?'text':'password';q('#tgShow').textContent=on?'Hide':'Show';q('#tgShow').setAttribute('aria-pressed',String(on));q('#tgShow').setAttribute('aria-label',on?'Hide password':'Show password')};
+    const bindToggle=(inputId,btnId)=>{q('#'+btnId).onclick=()=>{const pw=q('#'+inputId),on=pw.type==='password';pw.type=on?'text':'password';q('#'+btnId).textContent=on?'Hide':'Show';q('#'+btnId).setAttribute('aria-pressed',String(on));q('#'+btnId).setAttribute('aria-label',on?'Hide password':'Show password')}};
+    bindToggle('tgPassword','tgShow');bindToggle('tgNewPassword','tgShowNew');bindToggle('tgNewPassword2','tgShowNew2');
     q('#tgInstall').onclick=async()=>{const p=window.jobcamInstallPrompt;if(!p)return;await p.prompt();await p.userChoice;window.jobcamInstallPrompt=null;document.documentElement.classList.remove('can-install')};
     // iPhone home-screen apps can't see the Safari link, so a client who added JobCam there gets one small fallback.
     if(isIOS()&&isStandalone()){q('#tgClient').hidden=false;q('#tgClient').onclick=()=>{q('#tgClientForm').hidden=false;q('#tgClientCode').focus()};q('#tgClientForm').onsubmit=e=>{e.preventDefault();location.hash='client='+q('#tgClientCode').value.trim();location.reload()}}
   }
   const hideApp=on=>['.header','.bottom-nav','#main'].forEach(sel=>{const el=q(sel);if(!el)return;if(on)el.setAttribute('hidden','');else el.removeAttribute('hidden')});
-  g.hidden=false;hideApp(true);q('#tgError').textContent=opts.message||'';q('#tgPassword').value='';q('#tgCancel').hidden=!opts.dismissable;
+  const setView=(view,msg)=>{
+    const signin=view==='signin',forgot=view==='forgot',reset=view==='reset';
+    q('#teamGateForm').hidden=!signin;q('#tgForgot').hidden=!signin;q('#tgFoot').hidden=!signin;
+    q('#teamGateForgot').hidden=!forgot;q('#teamGateReset').hidden=!reset;
+    q('#tgCancel').hidden=!(signin&&opts.dismissable);
+    const heading=q('#teamGateHeading'),intro=q('#teamGateIntro');
+    if(signin){heading.textContent='Team sign-in';intro.textContent='For Carpenter Johnny team members. Clients open their project from the QR code or link they received.';q('#tgError').textContent=msg||opts.message||'';q('#tgPassword').value='';}
+    else if(forgot){heading.textContent='Forgot password';intro.textContent='Enter the email for your team account.';q('#tgForgotEmail').value=(q('#tgEmail').value||'').trim();q('#tgForgotError').textContent='';q('#tgForgotMsg').textContent=msg||'';setTimeout(()=>q('#tgForgotEmail').focus(),60);}
+    else{heading.textContent='Set a new password';intro.textContent='Choose a new password for your team account. At least 8 characters.';if(msg)q('#tgResetError').textContent=msg;else q('#tgResetError').textContent='';setTimeout(()=>{if(rec&&rec.kind==='error')return;q('#tgNewPassword').focus()},60);}
+  };
+  g.hidden=false;hideApp(true);q('#tgCancel').hidden=!opts.dismissable;
+  const rec=recoveryFromUrl();
+  if(rec.kind!=='none')setView('reset',rec.kind==='error'?rec.message:'');else setView('signin',opts.message||'');
   gateOpen=new Promise(resolve=>{
     const close=ok=>{g.hidden=true;hideApp(false);gateOpen=null;resolve(ok)};
     q('#tgCancel').onclick=()=>close(false);
+    q('#tgForgot').onclick=()=>setView('forgot');
+    q('#tgForgotBack').onclick=()=>{q('#tgEmail').value=(q('#tgForgotEmail').value||q('#tgEmail').value||'').trim();setView('signin')};
+    q('#tgResetForgot').onclick=()=>setView('forgot');
     q('#teamGateForm').onsubmit=async e=>{e.preventDefault();const err=q('#tgError'),btn=q('#tgSubmit'),email=q('#tgEmail').value.trim(),pw=q('#tgPassword').value;
       if(!email){err.textContent='Enter your email.';q('#tgEmail').focus();return}
       if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){err.textContent='Enter a valid email address.';q('#tgEmail').focus();return}
@@ -203,7 +259,37 @@ function showGate(opts){opts=opts||{};if(gateOpen)return gateOpen;
         q('#tgPassword').value='';close(true)}
       catch(e2){err.textContent=friendlyAuthError(e2);q('#tgPassword').select()}
       finally{btn.disabled=false;btn.textContent='Sign in'}};
-    setTimeout(()=>{const em=q('#tgEmail');(em.value?q('#tgPassword'):em).focus()},60)});
+    q('#teamGateForgot').onsubmit=async e=>{e.preventDefault();const err=q('#tgForgotError'),msg=q('#tgForgotMsg'),btn=q('#tgForgotSubmit'),email=q('#tgForgotEmail').value.trim();
+      if(!email){err.textContent='Enter your email.';q('#tgForgotEmail').focus();return}
+      if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){err.textContent='Enter a valid email address.';q('#tgForgotEmail').focus();return}
+      btn.disabled=true;btn.textContent='Sending…';err.textContent='';msg.textContent='';
+      try{const client=await adminClient();const r=await client.auth.resetPasswordForEmail(email,{redirectTo:LIVE_APP_URL});if(r.error)throw r.error;
+        q('#tgEmail').value=email;
+        msg.textContent='If that email has a team account, a reset link is on its way. Check spam too.'}
+      catch(e2){err.textContent=friendlyAuthError(e2,'reset')}
+      finally{btn.disabled=false;btn.textContent='Send reset link'}};
+    q('#teamGateReset').onsubmit=async e=>{e.preventDefault();const err=q('#tgResetError'),btn=q('#tgResetSubmit'),a=q('#tgNewPassword').value,b=q('#tgNewPassword2').value;
+      if(!a){err.textContent='Enter a new password.';q('#tgNewPassword').focus();return}
+      if(a.length<8){err.textContent='Use a password of at least 8 characters.';q('#tgNewPassword').focus();return}
+      if(a!==b){err.textContent='Those passwords don’t match.';q('#tgNewPassword2').focus();return}
+      btn.disabled=true;btn.textContent='Saving…';err.textContent='';
+      try{const client=await adminClient();const session=check(await client.auth.getSession()).session;if(!session)throw Error('This reset link is invalid or has expired. Request a new one.');
+        const r=await client.auth.updateUser({password:a});if(r.error)throw r.error;
+        const row=(check(await client.rpc('am_i_admin'))||[])[0];
+        if(!row?.is_admin){try{await client.auth.signOut()}catch{}try{localStorage.removeItem('jobcam-admin-auth')}catch{}throw Error('This account isn’t on the JobCam team list. Ask the owner to add it.')}
+        q('#tgNewPassword').value='';q('#tgNewPassword2').value='';cleanAuthUrl();close(true)}
+      catch(e2){err.textContent=friendlyAuthError(e2,'password');q('#tgNewPassword').select()}
+      finally{btn.disabled=false;btn.textContent='Save new password'}};
+    if(rec.kind!=='none'&&rec.kind!=='error'){(async()=>{try{const client=await adminClient();
+        if(rec.kind==='implicit'&&rec.access_token){const r=await client.auth.setSession({access_token:rec.access_token,refresh_token:rec.refresh_token});if(r.error)throw r.error;}
+        else if(rec.kind==='pkce'&&rec.code){const r=await client.auth.exchangeCodeForSession(rec.code);if(r.error)throw r.error;}
+        const {data:{subscription}}=client.auth.onAuthStateChange((event)=>{/* PASSWORD_RECOVERY also arrives here after implicit tokens are consumed */});
+        let session=check(await client.auth.getSession()).session;
+        if(!session){session=await new Promise(res=>{const t=setTimeout(()=>res(null),2000);client.auth.onAuthStateChange((event,sess)=>{if(event==='PASSWORD_RECOVERY'||event==='SIGNED_IN'){clearTimeout(t);res(sess||true)}})})}
+        try{subscription.unsubscribe()}catch{}
+        if(!session)throw Error('This reset link is invalid or has expired. Request a new one.');
+      }catch(e2){q('#tgResetError').textContent=friendlyAuthError(e2,'password')}})()}
+    setTimeout(()=>{if(rec.kind!=='none'){if(rec.kind!=='error')q('#tgNewPassword').focus();return}const em=q('#tgEmail');(em.value?q('#tgPassword'):em).focus()},60)});
   return gateOpen}
 window.JobcamGate={show:showGate};
 function teamUI(msg){
@@ -248,6 +334,6 @@ async function openShare(){const p=getCurrent();if(!p||!admin)return;const d=sha
 try{const innerDetail=renderDetail;renderDetail=function(){innerDetail();const p=getCurrent();if(!p||!admin||p.demo)return;const tools=q('.v2-tools');if(!tools||q('#shareClientButton'))return;const b=document.createElement('button');b.className='primary';b.id='shareClientButton';b.type='button';b.textContent='Share with client';b.style.gridColumn='1 / -1';b.onclick=openShare;tools.append(b)}}catch{}
 
 /* Boot: wait for the notebook to finish loading (after the install passcode). */
-(function boot(){if(!window.jobcamReady){setTimeout(boot,200);return}addTeamBox();const off=q('#offlineStatus');if(off)off.textContent=off.textContent.replace('Cloud mode requires a connection; it has no offline sync queue.','');if(hasStoredSession()){const go=()=>becomeAdmin().then(async ok=>{if(!ok&&navigator.onLine&&!hasStoredSession()){if(await showGate({message:'Please sign in again.'}))becomeAdmin().catch(()=>teamUI())}}).catch(err=>{teamUI(navigator.onLine?'Couldn’t check your sign-in: '+err.message:'');if(!navigator.onLine)window.addEventListener('online',()=>{if(!admin)becomeAdmin().catch(()=>{})},{once:true})});go()}else if(navigator.onLine){showGate().then(ok=>{if(ok)becomeAdmin().catch(()=>teamUI())})}})();
+(function boot(){if(!window.jobcamReady){setTimeout(boot,200);return}addTeamBox();const off=q('#offlineStatus');if(off)off.textContent=off.textContent.replace('Cloud mode requires a connection; it has no offline sync queue.','');if(recoveryFromUrl().kind!=='none'){showGate().then(ok=>{if(ok)becomeAdmin().catch(()=>teamUI())})}else if(hasStoredSession()){const go=()=>becomeAdmin().then(async ok=>{if(!ok&&navigator.onLine&&!hasStoredSession()){if(await showGate({message:'Please sign in again.'}))becomeAdmin().catch(()=>teamUI())}}).catch(err=>{teamUI(navigator.onLine?'Couldn’t check your sign-in: '+err.message:'');if(!navigator.onLine)window.addEventListener('online',()=>{if(!admin)becomeAdmin().catch(()=>{})},{once:true})});go()}else if(navigator.onLine){showGate().then(ok=>{if(ok)becomeAdmin().catch(()=>teamUI())})}})();
 window.JobcamTeam={syncNow,state:loadState,get admin(){return admin},get pending(){return pendingCount}};
 })();
