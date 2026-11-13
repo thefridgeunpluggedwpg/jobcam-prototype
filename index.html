@@ -156,10 +156,10 @@ $('#importInput').onchange=async e=>{const file=e.target.files[0];if(!file)retur
 // Embedded home-screen assets: no external requests. HTTPS/browser support is required to install.
 function setupHomeScreen(){/* Static manifest and PNG icons are linked in the document head. */}
 if(window.jobcamInstallPrompt){installPrompt=window.jobcamInstallPrompt}
-window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installPrompt=e;$('#installHint').textContent='This browser supports installation. Tap above to add Johnny Jobs.'});
+window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installPrompt=e;$('#installHint').textContent='This browser supports installation. Tap above to install JobCam.'});
 window.addEventListener('appinstalled',()=>{installPrompt=null;toast('Johnny Jobs added to your home screen.')});
 $('#lockInstall').onclick=async()=>{const p=installPrompt||window.jobcamInstallPrompt;if(!p)return;await p.prompt();await p.userChoice;installPrompt=null;window.jobcamInstallPrompt=null;document.documentElement.classList.remove('can-install')};
-$('#installButton').onclick=async()=>{installPrompt=installPrompt||window.jobcamInstallPrompt;if(installPrompt){await installPrompt.prompt();await installPrompt.userChoice;installPrompt=null;return}$('#installHint').textContent=location.protocol==='file:'?'This local file cannot be installed. Host it on HTTPS first, then open in Safari or Chrome. No hosting has been set up.': 'On iPhone: Safari → Share → Add to Home Screen. On Android: Chrome ⋮ menu → Install and create shortcut → Install (not Create shortcut). Availability depends on browser and HTTPS; offline is ready after the first online load (check status in settings).';};
+$('#installButton').onclick=async()=>{installPrompt=installPrompt||window.jobcamInstallPrompt;if(installPrompt){await installPrompt.prompt();await installPrompt.userChoice;installPrompt=null;return}$('#installHint').textContent=location.protocol==='file:'?'This local file cannot be installed. Host it on HTTPS first, then open in Safari or Chrome. No hosting has been set up.': 'On iPhone: Safari → Share → Add to Home Screen. On Android: tap the “Install JobCam app” button (on the lock screen or here) when it appears. If it doesn’t show, reload the page once while online. Offline is ready after the first online load (check status in settings).';};
 
 const INSTALL_SALT='18bf8c6524287fee326a32eb4991a859';
 const INSTALL_HASH='9de6533ee711d3c580d344fee9a21757fef86da44914a9ab498f2cef6d56b102';
@@ -221,6 +221,8 @@ async function startNotebook(){if(window.jobcamCloudConfigured&&jobcamCloudConfi
 </script>
 <script src="./storage-adapters.js"></script>
 <script src="./v2.js"></script>
+<script src="./qrcode.js"></script>
+<script src="./qr-share.js"></script>
 <script src="./cloud.js"></script>
 </body>
 </html>
