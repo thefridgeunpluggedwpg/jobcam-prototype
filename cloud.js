@@ -68,7 +68,7 @@ async function startClient(){
     const access=check(await sb.rpc('my_client_access'))||[];
     if(!jobId){if(!access.length){clientShell('<h1>Your project</h1>'+codeForm('Your link has expired or was turned off. Ask Carpenter Johnny for a new link, or type a code.')+'<p class="client-foot"><button class="text-btn" id="clientExit">Not a client? Exit client view</button></p>');bindCodeForm();q('#clientExit').onclick=exitClient;return}let pick=null;try{pick=sessionStorage.getItem('jobcam-client-job')}catch{}const row=access.find(x=>x.job_id===pick)||access[0];jobId=row.job_id;expires=row.expires_at}
     const job=check(await sb.from('jobs').select('id,name,category,area,job_date,note,completed_on').eq('id',jobId).single());
-    const photos=check(await sb.from('photos').select('id,phase,original_path,stamp,caption,added_at').eq('job_id',jobId).order('added_at',{ascending:true}))||[];
+    const photos=check(await sb.from('photos').select('id,phase,original_path,stamp,caption,added_at,taken_at').eq('job_id',jobId).order('added_at',{ascending:true}))||[];const shot=p=>{const v=Date.parse(p.taken_at||'');return Number.isFinite(v)?v:(Date.parse(p.added_at||'')||0)};photos.sort((a,b)=>shot(a)-shot(b));
     const paths=photos.map(p=>p.original_path);let urls={};
     if(paths.length){for(const r of check(await sb.storage.from(BUCKET).createSignedUrls(paths,3600))||[])if(r.signedUrl)urls[r.path]=r.signedUrl}
     const others=access.filter(a=>a.job_id!==jobId);
@@ -139,17 +139,29 @@ const jobRow=p=>({id:p.id,name:cut(p.name,90),category:cut(p.category,40),area:c
 const photoMeta=(p,ph)=>({id:ph.id,job_id:p.id,phase:ph.phase,name:cut(ph.name,300),stamp:cut(ph.stamp,300),taken_at:ph.takenAt||null,added_at:iso(ph.addedAt),source:cut(ph.source,100),uploaded_by:cut(ph.uploader,50),gps:ph.gps||null,tags:ph.tags||[],caption:cut(ph.caption,500),annotations:ph.annotations||[],annotated_at:iso(ph.annotatedAt)});
 const noteRow=(p,l)=>({id:l.id,job_id:p.id,log_date:l.date,author:cut(l.author,50),work:cut(l.work,2000),issues:cut(l.issues,1000),next_steps:cut(l.next,1000),weather:cut(l.weather,200),created_at:iso(l.createdAt)||iso(l.date+'T12:00:00-05:00')||new Date(0).toISOString()});
 const syncable=p=>p&&!p.demo&&SAFE.test(p.id);
+// Per-field merge for photo rows: s.base remembers the row as last seen in the cloud, so a phone only sends the fields it changed
+// (e.g. a caption edit on one phone never overwrites a date fix made on another).
+const ROWKEYS=['phase','name','stamp','taken_at','added_at','source','uploaded_by','gps','tags','caption','annotations','annotated_at','original_path','annotated_path'];
+const sameField=(k,a,b)=>{if((k==='added_at'||k==='annotated_at')&&a&&b)return Date.parse(a)===Date.parse(b);return stable(a??null)===stable(b??null)};
+const rowBase=r=>{const o={};for(const k of ROWKEYS)o[k]=r[k]??null;return o};
+const ownPath=(p,ph,x)=>typeof x==='string'&&x.startsWith(p.id+'/'+ph.id+'/');
 
-function planPush(list,st,del={}){const ops=[];for(const p of list){if(!syncable(p))continue;const jf=fp(jobRow(p));if(st.jobs[p.id]!==jf)ops.push({t:'job',p,f:jf});for(const ph of p.photos||[]){if(!SAFE.test(ph.id)||del[ph.id])continue;const s=st.photos[ph.id]||{};if(!s.orig)ops.push({t:'orig',p,ph});const annF=ph.annotatedData?fp(ph.annotatedData):'';if(annF&&s.annFp!==annF)ops.push({t:'ann',p,ph,f:annF});const mf=fp(photoMeta(p,ph));if(s.meta!==mf||!s.row)ops.push({t:'meta',p,ph,f:mf})}for(const l of p.logs||[]){if(!SAFE.test(l.id))continue;const nf=fp(noteRow(p,l));if(st.notes[l.id]!==nf)ops.push({t:'note',p,l,f:nf})}}return ops}
+function planPush(list,st,del={}){const ops=[];for(const p of list){if(!syncable(p))continue;const jf=fp(jobRow(p));if(st.jobs[p.id]!==jf)ops.push({t:'job',p,f:jf});for(const ph of p.photos||[]){if(!SAFE.test(ph.id)||del[ph.id])continue;const s=st.photos[ph.id]||{};const re=!!(s.orig&&ph.dataRev&&s.origRev!==ph.dataRev);if(!s.orig)ops.push({t:'orig',p,ph});else if(re)ops.push({t:'reorig',p,ph});const annF=ph.annotatedData?fp(ph.annotatedData):'';if(annF&&s.annFp!==annF)ops.push({t:'ann',p,ph,f:annF});const mf=fp(photoMeta(p,ph));if(s.meta!==mf||!s.row||re||s.cleanup)ops.push({t:'meta',p,ph,f:mf})}for(const l of p.logs||[]){if(!SAFE.test(l.id))continue;const nf=fp(noteRow(p,l));if(st.notes[l.id]!==nf)ops.push({t:'note',p,l,f:nf})}}return ops}
 async function upload(path,dataUrl){const blob=await(await fetch(dataUrl)).blob();const type=/^image\/(jpeg|png|webp)$/.test(blob.type)?blob.type:'image/jpeg';const r=await sb.storage.from(BUCKET).upload(path,blob,{contentType:type,upsert:false,cacheControl:'3600'});if(r.error&&!/exist|duplicate/i.test(r.error.message||''))throw Error(r.error.message);return path}
 async function push(st){const list=await localLoad(),del=await loadDeleted();const ops=planPush(list,st,del);let done=0;
   for(const op of ops){const {p,ph}=op;
     if(op.t==='job'){check(await sb.from('jobs').upsert(jobRow(p),{onConflict:'id'}));st.jobs[p.id]=op.f}
-    else if(op.t==='orig'){if(!st.jobs[p.id])continue;const s=st.photos[ph.id]||(st.photos[ph.id]={});s.orig=await upload(p.id+'/'+ph.id+'/original-'+crypto.randomUUID()+'.jpg',ph.data)}
-    else if(op.t==='ann'){const s=st.photos[ph.id];if(!s?.orig)continue;s.ann=await upload(p.id+'/'+ph.id+'/markup-'+crypto.randomUUID()+'.jpg',ph.annotatedData);s.annFp=op.f;s.meta=''}
+    else if(op.t==='orig'){if(!st.jobs[p.id])continue;const s=st.photos[ph.id]||(st.photos[ph.id]={});s.orig=await upload(p.id+'/'+ph.id+'/original-'+crypto.randomUUID()+'.jpg',ph.data);if(ph.dataRev)s.origRev=ph.dataRev}
+    else if(op.t==='reorig'){const s=st.photos[ph.id];if(!s?.orig)continue;const rev=ph.dataRev,np=await upload(p.id+'/'+ph.id+'/original-'+crypto.randomUUID()+'.jpg',ph.data);s.old=[...(s.old||[]),s.orig].slice(-10);s.orig=np;s.origRev=rev;s.meta='';s.cleanup=true;s.pathDirty=true}
+    else if(op.t==='ann'){const s=st.photos[ph.id];if(!s?.orig)continue;if(s.ann){s.old=[...(s.old||[]),s.ann].slice(-10);s.cleanup=true}s.pathDirty=true;s.ann=await upload(p.id+'/'+ph.id+'/markup-'+crypto.randomUUID()+'.jpg',ph.annotatedData);s.annFp=op.f;s.meta=''}
     else if(op.t==='meta'){const s=st.photos[ph.id];if(!s?.orig)continue;const row={...photoMeta(p,ph),original_path:s.orig,annotated_path:s.ann||null};
       // Once the row exists, only update it: if another phone deleted the photo, don't bring it back (pull then drops it here).
-      if(s.row){const upd=check(await sb.from('photos').update(row).eq('id',ph.id).select('id'))||[];if(!upd.length){s.gone=true;continue}}else check(await sb.from('photos').upsert(row,{onConflict:'id'}));s.meta=op.f;s.row=true}
+      // Only the fields this phone changed since it last saw the row are sent.
+      if(s.row){let patch={};if(s.base){for(const k of ROWKEYS)if(!sameField(k,row[k],s.base[k]))patch[k]=row[k];if(!s.pathDirty){delete patch.original_path;delete patch.annotated_path}}else{patch={...row};delete patch.id}
+        if(Object.keys(patch).length){const upd=check(await sb.from('photos').update(patch).eq('id',ph.id).select('id'))||[];if(!upd.length){s.gone=true;continue}s.base={...(s.base||rowBase(row)),...patch}}}
+      else{check(await sb.from('photos').upsert(row,{onConflict:'id'}));s.base=rowBase(row)}s.meta=op.f;s.row=true;s.pathDirty=false;
+      // Old copies replaced by a re-stamped photo or a new markup: tidy them out of storage (best effort).
+      if(s.cleanup){const gone=(s.old||[]).filter(x=>ownPath(p,ph,x)&&x!==s.orig&&x!==s.ann);if(gone.length){try{check(await sb.storage.from(BUCKET).remove(gone))}catch(e){console.warn('JobCam: old photo copy left in storage',e)}}s.cleanup=false}}
     else if(op.t==='note'){if(!st.jobs[p.id])continue;check(await sb.from('notes').upsert(noteRow(p,op.l),{onConflict:'id'}));st.notes[op.l.id]=op.f}
     done++;if(done%5===0)await saveState(st)}
   await saveState(st);return planPush(await localLoad(),st,await loadDeleted()).filter(o=>!st.photos[o.ph?.id]?.gone).length}
@@ -176,7 +188,11 @@ async function pull(st){
   const localNow=await localLoad(),byId=new Map(localNow.map(p=>[p.id,p]));const images=new Map();
   for(const r of photos){const local=byId.get(r.job_id)?.photos?.find(x=>x.id===r.id);const s=st.photos[r.id];
     if(!local){try{images.set(r.id,{data:await download(r.original_path),ann:r.annotated_path?await download(r.annotated_path):null})}catch(e){console.warn('JobCam: photo will retry',e)}}
-    else if(r.annotated_path&&s&&s.ann!==r.annotated_path&&(!local.annotatedData||fp(local.annotatedData)===s.annFp)){try{images.set(r.id,{ann:await download(r.annotated_path)})}catch{}}}
+    else{const img={};
+      // Another phone re-stamped this photo (new date): fetch the new original unless this phone has its own re-stamp waiting, or the cloud still holds one of this phone's own older copies.
+      if(s&&s.orig&&r.original_path!==s.orig&&!(s.old||[]).includes(r.original_path)&&(!local.dataRev||local.dataRev===s.origRev)){try{img.data=await download(r.original_path)}catch(e){console.warn('JobCam: photo will retry',e)}}
+      if(r.annotated_path&&s&&s.ann!==r.annotated_path&&(!local.annotatedData||fp(local.annotatedData)===s.annFp)){try{img.ann=await download(r.annotated_path)}catch{}}
+      if(img.data||img.ann)images.set(r.id,img)}}
   // Merge against the freshest in-memory copy to avoid clobbering edits made during downloads.
   const current=(Array.isArray(projects)?projects:[]).slice(),map=new Map(current.map(p=>[p.id,p])),changed=new Map();
   const edit=id=>{if(!changed.has(id)){const p=map.get(id);changed.set(id,{...p,tags:[...(p.tags||[])],photos:[...(p.photos||[])],logs:[...(p.logs||[])]})}return changed.get(id)};
@@ -186,11 +202,12 @@ async function pull(st){
     if(lf!==rf&&st.jobs[j.id]===lf){Object.assign(edit(j.id),remote);st.jobs[j.id]=rf}else if(lf===rf)st.jobs[j.id]=lf}
   for(const r of photos){if(!map.has(r.job_id))continue;const p=changed.get(r.job_id)||map.get(r.job_id);const local=p.photos.find(x=>x.id===r.id);const img=images.get(r.id);
     const remoteMeta={phase:r.phase,name:r.name,stamp:r.stamp,takenAt:r.taken_at,addedAt:r.added_at,source:r.source,uploader:r.uploaded_by,gps:r.gps,tags:r.tags||[],caption:r.caption,annotations:r.annotations||[],annotatedAt:r.annotated_at||undefined};
-    if(!local){if(!img?.data)continue;const ph={id:r.id,...remoteMeta,data:img.data,...(img.ann?{annotatedData:img.ann}:{})};edit(r.job_id).photos.push(ph);const q2=changed.get(r.job_id);st.photos[r.id]={orig:r.original_path,ann:r.annotated_path||null,annFp:img.ann?fp(img.ann):'',meta:fp(photoMeta(q2,ph)),row:true};continue}
+    if(!local){if(!img?.data)continue;const ph={id:r.id,...remoteMeta,data:img.data,...(img.ann?{annotatedData:img.ann}:{})};edit(r.job_id).photos.push(ph);const q2=changed.get(r.job_id);st.photos[r.id]={orig:r.original_path,ann:r.annotated_path||null,annFp:img.ann?fp(img.ann):'',meta:fp(photoMeta(q2,ph)),row:true,base:rowBase(r)};continue}
     const s=st.photos[r.id]||(st.photos[r.id]={orig:r.original_path,row:true});s.orig=s.orig||r.original_path;s.row=true;
+    if(img?.data){const rev='cloud:'+r.original_path,tgt=edit(r.job_id);tgt.photos=tgt.photos.map(x=>x.id===r.id?{...x,data:img.data,dataRev:rev}:x);s.orig=r.original_path;s.origRev=rev}
     const lm=fp(photoMeta(p,local)),rm=fp(photoMeta(p,{...local,...remoteMeta}));
-    if(lm!==rm&&s.meta===lm){const tgt=edit(r.job_id);tgt.photos=tgt.photos.map(x=>x.id===r.id?{...x,...remoteMeta,...(img?.ann?{annotatedData:img.ann}:{})}:x);const np=tgt.photos.find(x=>x.id===r.id);s.meta=fp(photoMeta(tgt,np));if(img?.ann){s.ann=r.annotated_path;s.annFp=fp(img.ann)}}
-    else if(lm===rm)s.meta=lm}
+    if(lm!==rm&&s.meta===lm){const tgt=edit(r.job_id);tgt.photos=tgt.photos.map(x=>x.id===r.id?{...x,...remoteMeta,...(img?.ann?{annotatedData:img.ann}:{})}:x);const np=tgt.photos.find(x=>x.id===r.id);s.meta=fp(photoMeta(tgt,np));if(img?.ann){s.ann=r.annotated_path;s.annFp=fp(img.ann)}s.base=rowBase(r)}
+    else if(lm===rm){s.meta=lm;if(r.original_path===s.orig&&(r.annotated_path||null)===(s.ann||null))s.base=rowBase(r)}}
   // Photos another phone deleted: drop local copies whose cloud row is gone. Only photos this phone knows were in the cloud (row seen/written);
   // photos still waiting to upload are never touched. Only for jobs the cloud returned, so an empty/failed read can't wipe anything.
   const remoteIds=new Set(allPhotos.map(r=>r.id)),remoteJobs=new Set(jobs.map(j=>j.id));
