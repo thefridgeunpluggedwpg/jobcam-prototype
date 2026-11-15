@@ -128,6 +128,9 @@ function cleanAuthUrl(){
 let stateDB;function openState(){if(stateDB)return Promise.resolve(stateDB);return new Promise((res,rej)=>{const r=indexedDB.open('JobCamCloud',1);r.onupgradeneeded=()=>r.result.createObjectStore('kv');r.onsuccess=()=>{stateDB=r.result;res(stateDB)};r.onerror=()=>rej(r.error)})}
 async function loadState(){const d=await openState();return new Promise((res,rej)=>{const g=d.transaction('kv').objectStore('kv').get('state');g.onsuccess=()=>res(g.result||{jobs:{},photos:{},notes:{}});g.onerror=()=>rej(g.error)})}
 async function saveState(st){const d=await openState();return new Promise((res,rej)=>{const t=d.transaction('kv','readwrite');t.objectStore('kv').put(st,'state');t.oncomplete=res;t.onerror=()=>rej(t.error)})}
+// Deleted-photo queue ("tombstones"), kept apart from sync state so a running sync can't overwrite it. Each entry is removed only after the cloud row and files are gone.
+async function loadDeleted(){const d=await openState();return new Promise((res,rej)=>{const g=d.transaction('kv').objectStore('kv').get('deleted');g.onsuccess=()=>res(g.result||{});g.onerror=()=>rej(g.error)})}
+async function updateDeleted(fn){const d=await openState();return new Promise((res,rej)=>{const t=d.transaction('kv','readwrite'),os=t.objectStore('kv'),g=os.get('deleted');g.onsuccess=()=>{const v=g.result||{};fn(v);os.put(v,'deleted')};t.oncomplete=res;t.onerror=()=>rej(t.error);t.onabort=()=>rej(t.error||Error('Delete queue write failed'))})}
 function stable(v){if(Array.isArray(v))return '['+v.map(stable).join(',')+']';if(v&&typeof v==='object')return '{'+Object.keys(v).filter(k=>v[k]!==undefined).sort().map(k=>JSON.stringify(k)+':'+stable(v[k])).join(',')+'}';return JSON.stringify(v===undefined?null:v)}
 function fp(v){const s=typeof v==='string'?v:stable(v);let h1=0xdeadbeef,h2=0x41c6ce57;for(let i=0;i<s.length;i++){const c=s.charCodeAt(i);h1=Math.imul(h1^c,2654435761);h2=Math.imul(h2^c,1597334677)}h1=Math.imul(h1^(h1>>>16),2246822507)^Math.imul(h2^(h2>>>13),3266489909);h2=Math.imul(h2^(h2>>>16),2246822507)^Math.imul(h1^(h1>>>13),3266489909);return (h2>>>0).toString(36)+(h1>>>0).toString(36)+':'+s.length}
 const cut=(s,n)=>String(s??'').slice(0,n);
@@ -137,22 +140,39 @@ const photoMeta=(p,ph)=>({id:ph.id,job_id:p.id,phase:ph.phase,name:cut(ph.name,3
 const noteRow=(p,l)=>({id:l.id,job_id:p.id,log_date:l.date,author:cut(l.author,50),work:cut(l.work,2000),issues:cut(l.issues,1000),next_steps:cut(l.next,1000),weather:cut(l.weather,200),created_at:iso(l.createdAt)||iso(l.date+'T12:00:00-05:00')||new Date(0).toISOString()});
 const syncable=p=>p&&!p.demo&&SAFE.test(p.id);
 
-function planPush(list,st){const ops=[];for(const p of list){if(!syncable(p))continue;const jf=fp(jobRow(p));if(st.jobs[p.id]!==jf)ops.push({t:'job',p,f:jf});for(const ph of p.photos||[]){if(!SAFE.test(ph.id))continue;const s=st.photos[ph.id]||{};if(!s.orig)ops.push({t:'orig',p,ph});const annF=ph.annotatedData?fp(ph.annotatedData):'';if(annF&&s.annFp!==annF)ops.push({t:'ann',p,ph,f:annF});const mf=fp(photoMeta(p,ph));if(s.meta!==mf||!s.row)ops.push({t:'meta',p,ph,f:mf})}for(const l of p.logs||[]){if(!SAFE.test(l.id))continue;const nf=fp(noteRow(p,l));if(st.notes[l.id]!==nf)ops.push({t:'note',p,l,f:nf})}}return ops}
+function planPush(list,st,del={}){const ops=[];for(const p of list){if(!syncable(p))continue;const jf=fp(jobRow(p));if(st.jobs[p.id]!==jf)ops.push({t:'job',p,f:jf});for(const ph of p.photos||[]){if(!SAFE.test(ph.id)||del[ph.id])continue;const s=st.photos[ph.id]||{};if(!s.orig)ops.push({t:'orig',p,ph});const annF=ph.annotatedData?fp(ph.annotatedData):'';if(annF&&s.annFp!==annF)ops.push({t:'ann',p,ph,f:annF});const mf=fp(photoMeta(p,ph));if(s.meta!==mf||!s.row)ops.push({t:'meta',p,ph,f:mf})}for(const l of p.logs||[]){if(!SAFE.test(l.id))continue;const nf=fp(noteRow(p,l));if(st.notes[l.id]!==nf)ops.push({t:'note',p,l,f:nf})}}return ops}
 async function upload(path,dataUrl){const blob=await(await fetch(dataUrl)).blob();const type=/^image\/(jpeg|png|webp)$/.test(blob.type)?blob.type:'image/jpeg';const r=await sb.storage.from(BUCKET).upload(path,blob,{contentType:type,upsert:false,cacheControl:'3600'});if(r.error&&!/exist|duplicate/i.test(r.error.message||''))throw Error(r.error.message);return path}
-async function push(st){const list=await localLoad();const ops=planPush(list,st);let done=0;
+async function push(st){const list=await localLoad(),del=await loadDeleted();const ops=planPush(list,st,del);let done=0;
   for(const op of ops){const {p,ph}=op;
     if(op.t==='job'){check(await sb.from('jobs').upsert(jobRow(p),{onConflict:'id'}));st.jobs[p.id]=op.f}
     else if(op.t==='orig'){if(!st.jobs[p.id])continue;const s=st.photos[ph.id]||(st.photos[ph.id]={});s.orig=await upload(p.id+'/'+ph.id+'/original-'+crypto.randomUUID()+'.jpg',ph.data)}
     else if(op.t==='ann'){const s=st.photos[ph.id];if(!s?.orig)continue;s.ann=await upload(p.id+'/'+ph.id+'/markup-'+crypto.randomUUID()+'.jpg',ph.annotatedData);s.annFp=op.f;s.meta=''}
-    else if(op.t==='meta'){const s=st.photos[ph.id];if(!s?.orig)continue;check(await sb.from('photos').upsert({...photoMeta(p,ph),original_path:s.orig,annotated_path:s.ann||null},{onConflict:'id'}));s.meta=op.f;s.row=true}
+    else if(op.t==='meta'){const s=st.photos[ph.id];if(!s?.orig)continue;const row={...photoMeta(p,ph),original_path:s.orig,annotated_path:s.ann||null};
+      // Once the row exists, only update it: if another phone deleted the photo, don't bring it back (pull then drops it here).
+      if(s.row){const upd=check(await sb.from('photos').update(row).eq('id',ph.id).select('id'))||[];if(!upd.length){s.gone=true;continue}}else check(await sb.from('photos').upsert(row,{onConflict:'id'}));s.meta=op.f;s.row=true}
     else if(op.t==='note'){if(!st.jobs[p.id])continue;check(await sb.from('notes').upsert(noteRow(p,op.l),{onConflict:'id'}));st.notes[op.l.id]=op.f}
     done++;if(done%5===0)await saveState(st)}
-  await saveState(st);return planPush(await localLoad(),st).length}
+  await saveState(st);return planPush(await localLoad(),st,await loadDeleted()).filter(o=>!st.photos[o.ph?.id]?.gone).length}
+// Run queued photo deletes: remove the photos row, then every file in that photo's own storage folder (original + any markups).
+async function deleteCloudPhoto(id,t,st){const folder=t.job+'/'+id;
+  const row=check(await sb.from('photos').select('id,job_id,original_path,annotated_path').eq('id',id).maybeSingle());
+  if(row){check(await sb.from('photos').delete().eq('id',id));if(check(await sb.from('photos').select('id').eq('id',id).maybeSingle()))throw Error('The cloud refused to delete the photo record (missing delete permission on photos).')}
+  const s=st.photos[id]||{},inFolder=x=>typeof x==='string'&&x.startsWith(folder+'/');
+  const listFiles=async()=>(check(await sb.storage.from(BUCKET).list(folder,{limit:1000}))||[]).filter(f=>f&&f.id&&f.name).map(f=>folder+'/'+f.name);
+  const paths=[...new Set([...(t.paths||[]),s.orig,s.ann,row?.original_path,row?.annotated_path,...await listFiles()].filter(inFolder))];
+  if(paths.length){check(await sb.storage.from(BUCKET).remove(paths));const left=(await listFiles()).filter(x=>paths.includes(x));if(left.length)throw Error('The cloud refused to delete the photo file (missing delete permission on storage).')}}
+let deleteWarned={};
+async function processDeletes(st){const del=await loadDeleted(),ids=Object.keys(del);let failed=0;
+  for(const id of ids){const t=del[id]||{};try{if(SAFE.test(id)&&SAFE.test(t.job||''))await deleteCloudPhoto(id,t,st);delete st.photos[id];await updateDeleted(d=>{delete d[id]})}
+    catch(err){failed++;lastError='Photo delete waiting: '+(err.message||err);if(/refused/i.test(err.message||'')&&!deleteWarned[id]){deleteWarned[id]=1;toast('Photo removed from this phone, but the cloud wouldn’t delete it yet. Tell the owner: '+err.message)}}}
+  if(ids.length)await saveState(st);return failed}
+async function pendingTotal(){const st=await loadState(),del=await loadDeleted();return planPush(await localLoad(),st,del).length+Object.keys(del).length}
 async function fetchAll(table){let out=[],from=0;for(;;){const rows=check(await sb.from(table).select('*').order('id',{ascending:true}).range(from,from+999))||[];out=out.concat(rows);if(rows.length<1000)return out;from+=1000}}
 const blobToData=b=>new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=()=>rej(r.error);r.readAsDataURL(b)});
 async function download(path){const {signedUrl}=check(await sb.storage.from(BUCKET).createSignedUrl(path,300));const r=await fetch(signedUrl,{cache:'no-store'});if(!r.ok)throw Error('Photo download failed');return blobToData(await r.blob())}
 async function pull(st){
-  const [jobs,photos,notes]=[await fetchAll('jobs'),await fetchAll('photos'),await fetchAll('notes')];
+  const del=await loadDeleted();
+  const [jobs,allPhotos,notes]=[await fetchAll('jobs'),await fetchAll('photos'),await fetchAll('notes')];const photos=allPhotos.filter(r=>!del[r.id]);
   const localNow=await localLoad(),byId=new Map(localNow.map(p=>[p.id,p]));const images=new Map();
   for(const r of photos){const local=byId.get(r.job_id)?.photos?.find(x=>x.id===r.id);const s=st.photos[r.id];
     if(!local){try{images.set(r.id,{data:await download(r.original_path),ann:r.annotated_path?await download(r.annotated_path):null})}catch(e){console.warn('JobCam: photo will retry',e)}}
@@ -171,15 +191,19 @@ async function pull(st){
     const lm=fp(photoMeta(p,local)),rm=fp(photoMeta(p,{...local,...remoteMeta}));
     if(lm!==rm&&s.meta===lm){const tgt=edit(r.job_id);tgt.photos=tgt.photos.map(x=>x.id===r.id?{...x,...remoteMeta,...(img?.ann?{annotatedData:img.ann}:{})}:x);const np=tgt.photos.find(x=>x.id===r.id);s.meta=fp(photoMeta(tgt,np));if(img?.ann){s.ann=r.annotated_path;s.annFp=fp(img.ann)}}
     else if(lm===rm)s.meta=lm}
+  // Photos another phone deleted: drop local copies whose cloud row is gone. Only photos this phone knows were in the cloud (row seen/written);
+  // photos still waiting to upload are never touched. Only for jobs the cloud returned, so an empty/failed read can't wipe anything.
+  const remoteIds=new Set(allPhotos.map(r=>r.id)),remoteJobs=new Set(jobs.map(j=>j.id));
+  for(const p of [...map.values()]){if(!syncable(p)||!remoteJobs.has(p.id))continue;const cur=changed.get(p.id)||p;const gone=(cur.photos||[]).filter(ph=>st.photos[ph.id]?.row&&!remoteIds.has(ph.id)&&!del[ph.id]);if(!gone.length)continue;const ids=new Set(gone.map(ph=>ph.id));const tgt=edit(p.id);tgt.photos=tgt.photos.filter(ph=>!ids.has(ph.id));for(const id of ids)delete st.photos[id]}
   for(const n of notes){if(!map.has(n.job_id))continue;const p=changed.get(n.job_id)||map.get(n.job_id);if((p.logs||[]).some(l=>l.id===n.id)){if(!st.notes[n.id])st.notes[n.id]=fp(noteRow(p,p.logs.find(l=>l.id===n.id)));continue}const log={id:n.id,date:n.log_date,author:n.author,work:n.work,issues:n.issues,next:n.next_steps,weather:n.weather,createdAt:n.created_at};edit(n.job_id).logs.push(log);st.notes[n.id]=fp(noteRow(p,log))}
   if(changed.size){await localPersist([...changed.values()]);const fresh=Array.isArray(projects)?projects.slice():[];for(const [id,p] of changed){const i=fresh.findIndex(x=>x.id===id);if(i>=0)fresh[i]=p;else fresh.push(p)}projects=fresh;const dialogOpen=[...document.querySelectorAll('dialog')].some(d=>d.open);if(!dialogOpen&&!busy)render()}
   await saveState(st);return changed.size}
 async function syncNow(manual=false){
   if(!admin)return;if(syncing){syncAgain=true;return}
-  if(!navigator.onLine){pendingCount=planPush(await localLoad(),await loadState()).length;teamUI();return}
+  if(!navigator.onLine){pendingCount=await pendingTotal();teamUI();return}
   syncing=true;teamUI('Syncing…');
-  try{const st=await loadState();pendingCount=await push(st);const got=await pull(st);pendingCount=await push(st);lastSync=Date.now();lastError='';if(manual)toast(got?'Synced. '+got+' job'+(got===1?'':'s')+' updated from the team.':'All synced.')}
-  catch(err){console.error(err);lastError=err.message||'Sync failed';try{pendingCount=planPush(await localLoad(),await loadState()).length}catch{}if(manual)toast('Not synced yet. It will retry automatically.')}
+  try{const st=await loadState();lastError='';pendingCount=await push(st);await processDeletes(st);const got=await pull(st);pendingCount=await push(st);pendingCount+=Object.keys(await loadDeleted()).length;lastSync=Date.now();if(manual)toast(got?'Synced. '+got+' job'+(got===1?'':'s')+' updated from the team.':'All synced.')}
+  catch(err){console.error(err);lastError=err.message||'Sync failed';try{pendingCount=await pendingTotal()}catch{}if(manual)toast('Not synced yet. It will retry automatically.')}
   finally{syncing=false;teamUI();if(syncAgain){syncAgain=false;setTimeout(()=>syncNow(),500)}}}
 function scheduleSync(){clearTimeout(syncTimer);syncTimer=setTimeout(()=>syncNow(),3000)}
 // Every local save also queues an upload (the queue is "anything not yet in the cloud", so nothing is lost offline).
@@ -336,5 +360,11 @@ try{const innerDetail=renderDetail;renderDetail=function(){innerDetail();const p
 
 /* Boot: wait for the notebook to finish loading (after the install passcode). */
 (function boot(){if(!window.jobcamReady){setTimeout(boot,200);return}addTeamBox();const off=q('#offlineStatus');if(off)off.textContent=off.textContent.replace('Cloud mode requires a connection; it has no offline sync queue.','');if(recoveryFromUrl().kind!=='none'){showGate().then(ok=>{if(ok)becomeAdmin().catch(()=>teamUI())})}else if(hasStoredSession()){const go=()=>becomeAdmin().then(async ok=>{if(!ok&&navigator.onLine&&!hasStoredSession()){if(await showGate({message:'Please sign in again.'}))becomeAdmin().catch(()=>teamUI())}}).catch(err=>{teamUI(navigator.onLine?'Couldn’t check your sign-in: '+err.message:'');if(!navigator.onLine)window.addEventListener('online',()=>{if(!admin)becomeAdmin().catch(()=>{})},{once:true})});go()}else if(navigator.onLine){showGate().then(ok=>{if(ok)becomeAdmin().catch(()=>teamUI())})}})();
-window.JobcamTeam={syncNow,state:loadState,get admin(){return admin},get pending(){return pendingCount}};
+/* Delete photo hook (called by v2.js before the local delete is saved): queue the cloud delete so it runs now or on the next sync. */
+window.jobcamPhotoDeleteHook=async function(p,ph){if(!syncable(p)||!SAFE.test(ph.id))return {message:'Photo deleted.'};
+  let st=null;try{st=await loadState()}catch{}const s=st?.photos?.[ph.id]||{};
+  await updateDeleted(d=>{d[ph.id]={job:p.id,paths:[s.orig,s.ann].filter(Boolean),at:new Date().toISOString()}});
+  if(admin&&navigator.onLine)scheduleSync();
+  return {undo:()=>updateDeleted(d=>{delete d[ph.id]}),message:admin&&navigator.onLine?'Photo deleted. Removing it from every phone and the client link.':'Photo deleted on this phone. It’ll be removed from the cloud and other phones when you’re back online.'}};
+window.JobcamTeam={syncNow,state:loadState,deleted:loadDeleted,get admin(){return admin},get canDelete(){return !!admin||hasStoredSession()},get pending(){return pendingCount}};
 })();
