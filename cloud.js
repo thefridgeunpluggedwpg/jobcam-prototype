@@ -149,6 +149,7 @@ const ownPath=(p,ph,x)=>typeof x==='string'&&x.startsWith(p.id+'/'+ph.id+'/');
 function planPush(list,st,del={}){const ops=[];for(const p of list){if(!syncable(p))continue;const jf=fp(jobRow(p));if(st.jobs[p.id]!==jf)ops.push({t:'job',p,f:jf});for(const ph of p.photos||[]){if(!SAFE.test(ph.id)||del[ph.id])continue;const s=st.photos[ph.id]||{};const re=!!(s.orig&&ph.dataRev&&s.origRev!==ph.dataRev);if(!s.orig)ops.push({t:'orig',p,ph});else if(re)ops.push({t:'reorig',p,ph});const annF=ph.annotatedData?fp(ph.annotatedData):'';if(annF&&s.annFp!==annF)ops.push({t:'ann',p,ph,f:annF});const mf=fp(photoMeta(p,ph));if(s.meta!==mf||!s.row||re||s.cleanup)ops.push({t:'meta',p,ph,f:mf})}for(const l of p.logs||[]){if(!SAFE.test(l.id))continue;const nf=fp(noteRow(p,l));if(st.notes[l.id]!==nf)ops.push({t:'note',p,l,f:nf})}}return ops}
 /* ---------- v2.6.0 sync engine: cloud first, phone = backup + offline queue, nothing fails silently ---------- */
 let failures={},dlFailed=new Map(),progress='',photoStatus=new Map(),waitingPhotos=0,failedPhotos=0,otherPending=0,authProblem='',pullProblem='',retryTimer=null,statusReady=false;
+const SYSTEMIC=/folder \(job-photos\) is missing|refused|No connection|sign-in expired|plan limit/;
 const BACKOFF=n=>Math.min(300000,4000*Math.pow(2,Math.max(0,n-1)));
 // Turn any cloud/network error into plain words for the crew.
 function plain(err){const m=String(err&&err.message||err||'');
@@ -160,6 +161,9 @@ function plain(err){const m=String(err&&err.message||err||'');
   if(/quota|limit reached|\b402\b|restricted|exceed/i.test(m))return 'The cloud plan limit has been reached. Kyler needs to check the Supabase plan and usage.';
   if(!navigator.onLine||/failed to fetch|network|load failed|abort|timed? ?out|connection|offline|fetch|importing a module|dynamically imported|tls/i.test(m))return 'No connection to the cloud right now.';
   return m||'Unknown problem';}
+// v2.6.1: use the app's in-memory job list (same records the app just saved) instead of re-reading every photo from IndexedDB
+// several times per sync — those full copies blew Android's per-tab memory (500 MB+ with 40 photos) and crashed the app.
+async function localList(){return (window.jobcamReady&&Array.isArray(projects))?projects.filter(Boolean):await localLoad()}
 const failKey=op=>op.t==='job'?'job:'+op.p.id:op.t==='note'?'note:'+op.l.id:'photo:'+op.ph.id;
 function noteFail(op,err){const k=failKey(op),f=failures[k]||{n:0};f.n++;f.next=Date.now()+BACKOFF(f.n);f.msg=plain(err);f.raw=String(err&&err.message||err||'').slice(0,300);f.at=Date.now();f.kind=op.t;f.job=op.p.id;f.id=op.ph?op.ph.id:op.l?op.l.id:op.p.id;failures[k]=f;console.warn('JobCam: upload failed, will retry',k,f.raw)}
 const clearFail=op=>{delete failures[failKey(op)]};
@@ -184,21 +188,22 @@ async function runPhotoOp(op,st){const {p,ph}=op;
       if(s.cleanup){const gone=(s.old||[]).filter(x=>ownPath(p,ph,x)&&x!==s.orig&&x!==s.ann);if(gone.length){try{check(await sb.storage.from(BUCKET).remove(gone))}catch(e){console.warn('JobCam: old photo copy left in storage',e)}}s.cleanup=false}}}
 // Push order: every job record, then every note, then each photo on its own. One failure never blocks the rest;
 // failed items wait (4 s, 8 s, 16 s … up to 5 min) unless the user taps Retry (force).
-async function push(st,force=false){const list=await localLoad(),del=await loadDeleted();const ops=planPush(list,st,del),now=Date.now();
+async function push(st,force=false){const list=await localList(),del=await loadDeleted();const ops=planPush(list,st,del),now=Date.now();
   const skip=op=>{const f=failures[failKey(op)];return !force&&f&&f.next>now};
   for(const op of ops.filter(o=>o.t==='job')){if(skip(op))continue;try{check(await sb.from('jobs').upsert(jobRow(op.p),{onConflict:'id'}));st.jobs[op.p.id]=op.f;clearFail(op)}catch(e){noteFail(op,e)}}
   await saveState(st);
   for(const op of ops.filter(o=>o.t==='note')){if(!st.jobs[op.p.id]||skip(op))continue;try{check(await sb.from('notes').upsert(noteRow(op.p,op.l),{onConflict:'id'}));st.notes[op.l.id]=op.f;clearFail(op)}catch(e){noteFail(op,e)}}
   const order={orig:0,reorig:1,ann:2,meta:3},byPhoto=new Map();for(const o of ops)if(o.ph){if(!byPhoto.has(o.ph.id))byPhoto.set(o.ph.id,[]);byPhoto.get(o.ph.id).push(o)}
-  let i=0;const total=byPhoto.size;
+  let i=0,streak=0,stopMsg='';const total=byPhoto.size;
   for(const [,group] of byPhoto){i++;const first=group[0];if(!st.jobs[first.p.id]||skip(first))continue;
     if(total>1){progress='Uploading photos '+i+' of '+total+'…';teamUI()}
-    try{for(const op of group.sort((a,b)=>order[a.t]-order[b.t]))await runPhotoOp(op,st);clearFail(first)}catch(e){noteFail(first,e)}
+    if(stopMsg){noteFail(first,Error(stopMsg));continue}
+    try{for(const op of group.sort((a,b)=>order[a.t]-order[b.t]))await runPhotoOp(op,st);clearFail(first);streak=0}catch(e){noteFail(first,e);const f=failures[failKey(first)];if(f&&SYSTEMIC.test(f.msg)){if(++streak>=2)stopMsg=f.raw||f.msg}else streak=0}
     await saveState(st)}
   progress='';await saveState(st);
-  return planPush(await localLoad(),st,await loadDeleted()).filter(o=>!st.photos[o.ph?.id]?.gone).length}
+  return planPush(list,st,await loadDeleted()).filter(o=>!st.photos[o.ph?.id]?.gone).length}
 // Per-photo cloud status for the banner and the little cloud icons.
-async function refreshStatus(st){st=st||await loadState();const list=await localLoad(),del=await loadDeleted();const ops=planPush(list,st,del).filter(o=>!(o.ph&&st.photos[o.ph.id]?.gone));
+async function refreshStatus(st){st=st||await loadState();const list=await localList(),del=await loadDeleted();const ops=planPush(list,st,del).filter(o=>!(o.ph&&st.photos[o.ph.id]?.gone));
   const waiting=new Set(ops.filter(o=>o.ph).map(o=>o.ph.id));const ps=new Map();let w=0,f=0;
   for(const p of list){if(!syncable(p))continue;for(const ph of p.photos||[]){if(!SAFE.test(ph.id)||del[ph.id])continue;if(waiting.has(ph.id)){if(failures['photo:'+ph.id]||failures['job:'+p.id]){ps.set(ph.id,'fail');f++}else{ps.set(ph.id,'wait');w++}}else ps.set(ph.id,'up')}}
   photoStatus=ps;waitingPhotos=w;failedPhotos=f;otherPending=ops.filter(o=>!o.ph).length+Object.keys(del).length;pendingCount=ops.length+Object.keys(del).length;statusReady=true;
@@ -217,14 +222,14 @@ async function processDeletes(st){const del=await loadDeleted(),ids=Object.keys(
   for(const id of ids){const t=del[id]||{};try{if(SAFE.test(id)&&SAFE.test(t.job||''))await deleteCloudPhoto(id,t,st);delete st.photos[id];await updateDeleted(d=>{delete d[id]})}
     catch(err){failed++;lastError='Photo delete waiting: '+(err.message||err);if(/refused/i.test(err.message||'')&&!deleteWarned[id]){deleteWarned[id]=1;toast('Photo removed from this phone, but the cloud wouldn’t delete it yet. Tell the owner: '+err.message)}}}
   if(ids.length)await saveState(st);return failed}
-async function pendingTotal(){const st=await loadState(),del=await loadDeleted();return planPush(await localLoad(),st,del).length+Object.keys(del).length}
+async function pendingTotal(){const st=await loadState(),del=await loadDeleted();return planPush(await localList(),st,del).length+Object.keys(del).length}
 async function fetchAll(table){let out=[],from=0;for(;;){const rows=check(await sb.from(table).select('*').order('id',{ascending:true}).range(from,from+999))||[];out=out.concat(rows);if(rows.length<1000)return out;from+=1000}}
 const blobToData=b=>new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=()=>rej(r.error);r.readAsDataURL(b)});
 async function download(path){const {signedUrl}=check(await sb.storage.from(BUCKET).createSignedUrl(path,300));const r=await fetch(signedUrl,{cache:'no-store'});if(!r.ok)throw Error('Photo download failed');return blobToData(await r.blob())}
 async function pull(st){
   const del=await loadDeleted();
   const [jobs,allPhotos,notes]=[await fetchAll('jobs'),await fetchAll('photos'),await fetchAll('notes')];const photos=allPhotos.filter(r=>!del[r.id]);
-  const localNow=await localLoad(),byId=new Map(localNow.map(p=>[p.id,p]));const images=new Map();
+  const localNow=await localList(),byId=new Map(localNow.map(p=>[p.id,p]));const images=new Map();
   // Download new/changed team photos, 4 at a time, with progress. Failures are counted and shown (never hidden behind "everything uploaded").
   const tasks=[];
   for(const r of photos){const local=byId.get(r.job_id)?.photos?.find(x=>x.id===r.id);const s=st.photos[r.id];
@@ -259,6 +264,7 @@ async function pull(st){
   if(changed.size){if(window.jobcamNormalizeJob)for(const [id,p] of changed){const n=window.jobcamNormalizeJob(p);if(n)changed.set(id,n)}await localPersist([...changed.values()]);const fresh=Array.isArray(projects)?projects.slice():[];for(const [id,p] of changed){const i=fresh.findIndex(x=>x.id===id);if(i>=0)fresh[i]=p;else fresh.push(p)}projects=fresh;const dialogOpen=[...document.querySelectorAll('dialog')].some(d=>d.open);if(!dialogOpen&&!busy)render()}
   await saveState(st);return changed.size}
 async function syncNow(manual=false){
+  if(!manual&&typeof busy!=='undefined'&&busy){clearTimeout(syncTimer);syncTimer=setTimeout(()=>syncNow(),4000);return}
   if(!admin){if(hasStoredSession())retryAuth(manual);return}
   if(syncing){syncAgain=true;if(manual)syncForce=true;return}
   if(!navigator.onLine){try{await refreshStatus()}catch{}teamUI();return}
@@ -278,11 +284,14 @@ function scheduleSync(){clearTimeout(syncTimer);syncTimer=setTimeout(()=>syncNow
 try{const innerPersist=persist;persist=async function(list){const r=await innerPersist(list);if(admin)scheduleSync();else refreshStatus().then(()=>teamUI()).catch(()=>{});return r}}catch{}
 // Stay in step with the team: live updates (Supabase Realtime) plus a 30-second refresh, and on focus / back online / app reopened.
 const POLL_MS=30000;
-function kick(){if(document.visibilityState==='hidden')return;if(admin)syncNow();else if(hasStoredSession())retryAuth()}
-window.addEventListener('online',kick);window.addEventListener('focus',kick);window.addEventListener('pageshow',e=>{if(e.persisted)kick()});
-document.addEventListener('visibilitychange',kick);
+let lastKick=0,kickTimer=null;
+function kick(force){force=force===true;if(document.visibilityState==='hidden')return;const now=Date.now();if(!force&&now-lastKick<15000)return;
+  if(typeof busy!=='undefined'&&busy){clearTimeout(kickTimer);kickTimer=setTimeout(()=>kick(true),4000);return}
+  lastKick=now;if(admin)syncNow();else if(hasStoredSession())retryAuth()}
+window.addEventListener('online',()=>kick(true));window.addEventListener('focus',()=>kick(false));window.addEventListener('pageshow',e=>{if(e.persisted)kick(false)});
+document.addEventListener('visibilitychange',()=>kick(false));
 window.addEventListener('offline',()=>teamUI());
-setInterval(()=>{if(navigator.onLine&&document.visibilityState!=='hidden')kick()},POLL_MS);
+setInterval(()=>{if(navigator.onLine&&document.visibilityState!=='hidden')kick(true)},POLL_MS);
 let rtChannel=null,rtTimer=null,rtStatus='off';
 function startRealtime(){if(rtChannel||!sb)return;try{rtChannel=sb.channel('jobcam-team-sync');for(const table of ['jobs','photos','notes'])rtChannel.on('postgres_changes',{event:'*',schema:'public',table},()=>{clearTimeout(rtTimer);rtTimer=setTimeout(()=>syncNow(),600)});
   rtChannel.subscribe((status,err)=>{rtStatus=String(status||'');if(/ERROR|TIMED_OUT|CLOSED/.test(rtStatus))console.warn('JobCam: live updates unavailable ('+rtStatus+'); using the 30-second refresh instead',err||'')})}catch(e){rtStatus='error';console.warn('JobCam: live updates unavailable; using the 30-second refresh instead',e)}}
