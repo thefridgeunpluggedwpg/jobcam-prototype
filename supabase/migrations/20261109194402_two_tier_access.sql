@@ -277,6 +277,9 @@ create policy client_access_admin_delete on public.client_access for delete to a
 
 ------------------------------------------------------------------------------
 -- Private Storage bucket for photos: path = <job_id>/<photo_id>/<kind>-<uuid>.jpg
+-- If photos stay on a phone and the app banner says the photo folder is missing or the cloud refused the photo,
+-- run supabase/migrations/20261115190000_v2_6_sync_check_and_realtime.sql (safe to re-run): it re-creates this
+-- bucket and these policies only if missing, turns on live updates between phones, and prints an OK/MISSING checklist.
 ------------------------------------------------------------------------------
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values ('job-photos', 'job-photos', false, 15728640, array['image/jpeg','image/png','image/webp'])

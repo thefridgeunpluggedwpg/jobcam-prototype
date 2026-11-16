@@ -147,24 +147,63 @@ const rowBase=r=>{const o={};for(const k of ROWKEYS)o[k]=r[k]??null;return o};
 const ownPath=(p,ph,x)=>typeof x==='string'&&x.startsWith(p.id+'/'+ph.id+'/');
 
 function planPush(list,st,del={}){const ops=[];for(const p of list){if(!syncable(p))continue;const jf=fp(jobRow(p));if(st.jobs[p.id]!==jf)ops.push({t:'job',p,f:jf});for(const ph of p.photos||[]){if(!SAFE.test(ph.id)||del[ph.id])continue;const s=st.photos[ph.id]||{};const re=!!(s.orig&&ph.dataRev&&s.origRev!==ph.dataRev);if(!s.orig)ops.push({t:'orig',p,ph});else if(re)ops.push({t:'reorig',p,ph});const annF=ph.annotatedData?fp(ph.annotatedData):'';if(annF&&s.annFp!==annF)ops.push({t:'ann',p,ph,f:annF});const mf=fp(photoMeta(p,ph));if(s.meta!==mf||!s.row||re||s.cleanup)ops.push({t:'meta',p,ph,f:mf})}for(const l of p.logs||[]){if(!SAFE.test(l.id))continue;const nf=fp(noteRow(p,l));if(st.notes[l.id]!==nf)ops.push({t:'note',p,l,f:nf})}}return ops}
-async function upload(path,dataUrl){const blob=await(await fetch(dataUrl)).blob();const type=/^image\/(jpeg|png|webp)$/.test(blob.type)?blob.type:'image/jpeg';const r=await sb.storage.from(BUCKET).upload(path,blob,{contentType:type,upsert:false,cacheControl:'3600'});if(r.error&&!/exist|duplicate/i.test(r.error.message||''))throw Error(r.error.message);return path}
-async function push(st){const list=await localLoad(),del=await loadDeleted();const ops=planPush(list,st,del);let done=0;
-  for(const op of ops){const {p,ph}=op;
-    if(op.t==='job'){check(await sb.from('jobs').upsert(jobRow(p),{onConflict:'id'}));st.jobs[p.id]=op.f}
-    else if(op.t==='orig'){if(!st.jobs[p.id])continue;const s=st.photos[ph.id]||(st.photos[ph.id]={});s.orig=await upload(p.id+'/'+ph.id+'/original-'+crypto.randomUUID()+'.jpg',ph.data);if(ph.dataRev)s.origRev=ph.dataRev}
-    else if(op.t==='reorig'){const s=st.photos[ph.id];if(!s?.orig)continue;const rev=ph.dataRev,np=await upload(p.id+'/'+ph.id+'/original-'+crypto.randomUUID()+'.jpg',ph.data);s.old=[...(s.old||[]),s.orig].slice(-10);s.orig=np;s.origRev=rev;s.meta='';s.cleanup=true;s.pathDirty=true}
-    else if(op.t==='ann'){const s=st.photos[ph.id];if(!s?.orig)continue;if(s.ann){s.old=[...(s.old||[]),s.ann].slice(-10);s.cleanup=true}s.pathDirty=true;s.ann=await upload(p.id+'/'+ph.id+'/markup-'+crypto.randomUUID()+'.jpg',ph.annotatedData);s.annFp=op.f;s.meta=''}
-    else if(op.t==='meta'){const s=st.photos[ph.id];if(!s?.orig)continue;const row={...photoMeta(p,ph),original_path:s.orig,annotated_path:s.ann||null};
+/* ---------- v2.6.0 sync engine: cloud first, phone = backup + offline queue, nothing fails silently ---------- */
+let failures={},dlFailed=new Map(),progress='',photoStatus=new Map(),waitingPhotos=0,failedPhotos=0,otherPending=0,authProblem='',pullProblem='',retryTimer=null,statusReady=false;
+const BACKOFF=n=>Math.min(300000,4000*Math.pow(2,Math.max(0,n-1)));
+// Turn any cloud/network error into plain words for the crew.
+function plain(err){const m=String(err&&err.message||err||'');
+  if(/bucket not found|nosuchbucket/i.test(m))return 'The cloud photo folder (job-photos) is missing. Kyler needs to run the JobCam storage setup in Supabase.';
+  if(/row-level security|violates|unauthori[sz]ed|permission denied|not allowed|forbidden|\b403\b/i.test(m))return 'The cloud refused the photo (no permission). This account may not be on the JobCam team list, or the storage rules are missing.';
+  if(/jwt|token.*expired|invalid claim|refresh token|not authenticated/i.test(m))return 'Your sign-in expired. Open Account and sign in again.';
+  if(/mime|content.?type|not supported|invalid.*type/i.test(m))return 'The cloud rejected the photo format.';
+  if(/payload too large|entity too large|\b413\b|maximum allowed size|exceeded the maximum/i.test(m))return 'The photo is too big for the cloud.';
+  if(/quota|limit reached|\b402\b|restricted|exceed/i.test(m))return 'The cloud plan limit has been reached. Kyler needs to check the Supabase plan and usage.';
+  if(!navigator.onLine||/failed to fetch|network|load failed|abort|timed? ?out|connection|offline|fetch|importing a module|dynamically imported|tls/i.test(m))return 'No connection to the cloud right now.';
+  return m||'Unknown problem';}
+const failKey=op=>op.t==='job'?'job:'+op.p.id:op.t==='note'?'note:'+op.l.id:'photo:'+op.ph.id;
+function noteFail(op,err){const k=failKey(op),f=failures[k]||{n:0};f.n++;f.next=Date.now()+BACKOFF(f.n);f.msg=plain(err);f.raw=String(err&&err.message||err||'').slice(0,300);f.at=Date.now();f.kind=op.t;f.job=op.p.id;f.id=op.ph?op.ph.id:op.l?op.l.id:op.p.id;failures[k]=f;console.warn('JobCam: upload failed, will retry',k,f.raw)}
+const clearFail=op=>{delete failures[failKey(op)]};
+function latestFailure(){let best=null;for(const f of Object.values(failures))if(!best||f.at>best.at)best=f;return best}
+// data: URL -> Blob without fetch() (older iOS Safari can choke on fetching big data URLs).
+function dataToBlob(dataUrl){const m=/^data:([^;,]*)((?:;[^;,]*)*?)(;base64)?,([\s\S]*)$/.exec(String(dataUrl||''));if(!m||!m[4])throw Error('This photo has no image data on this phone.');const bin=m[3]?atob(m[4]):decodeURIComponent(m[4]);const u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);return new Blob([u],{type:(m[1]||'').toLowerCase()})}
+// Always send a real JPEG with an explicit image/jpeg type (re-encode PNG/WebP/HEIC/untyped data first).
+async function toJpeg(dataUrl){let b=dataToBlob(dataUrl);if(b.type==='image/jpeg'&&b.size>0)return b;const img=new Image();img.src=dataUrl;await img.decode();const c=document.createElement('canvas');c.width=img.naturalWidth;c.height=img.naturalHeight;const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);x.drawImage(img,0,0);const out=c.toDataURL('image/jpeg',.88);c.width=c.height=0;b=dataToBlob(out);if(b.type!=='image/jpeg'||!b.size)throw Error('This phone couldn’t make a JPEG of the photo.');return b}
+async function upload(path,dataUrl){const blob=await toJpeg(dataUrl);const jpeg=blob.type==='image/jpeg'?blob:new Blob([blob],{type:'image/jpeg'});const r=await sb.storage.from(BUCKET).upload(path,jpeg,{contentType:'image/jpeg',upsert:false,cacheControl:'3600'});if(r.error&&!/exist|duplicate/i.test(r.error.message||''))throw Error(r.error.message||String(r.error));return path}
+// One photo = its file(s) then its row. Throws on failure; the caller records it and moves on to the next photo.
+async function runPhotoOp(op,st){const {p,ph}=op;
+    if(op.t==='orig'){if(!st.jobs[p.id])return;const s=st.photos[ph.id]||(st.photos[ph.id]={});s.orig=await upload(p.id+'/'+ph.id+'/original-'+crypto.randomUUID()+'.jpg',ph.data);if(ph.dataRev)s.origRev=ph.dataRev}
+    else if(op.t==='reorig'){const s=st.photos[ph.id];if(!s?.orig)return;const rev=ph.dataRev,np=await upload(p.id+'/'+ph.id+'/original-'+crypto.randomUUID()+'.jpg',ph.data);s.old=[...(s.old||[]),s.orig].slice(-10);s.orig=np;s.origRev=rev;s.meta='';s.cleanup=true;s.pathDirty=true}
+    else if(op.t==='ann'){const s=st.photos[ph.id];if(!s?.orig)return;if(s.ann){s.old=[...(s.old||[]),s.ann].slice(-10);s.cleanup=true}s.pathDirty=true;s.ann=await upload(p.id+'/'+ph.id+'/markup-'+crypto.randomUUID()+'.jpg',ph.annotatedData);s.annFp=op.f;s.meta=''}
+    else if(op.t==='meta'){const s=st.photos[ph.id];if(!s?.orig)return;const row={...photoMeta(p,ph),original_path:s.orig,annotated_path:s.ann||null};
       // Once the row exists, only update it: if another phone deleted the photo, don't bring it back (pull then drops it here).
       // Only the fields this phone changed since it last saw the row are sent.
       if(s.row){let patch={};if(s.base){for(const k of ROWKEYS)if(!sameField(k,row[k],s.base[k]))patch[k]=row[k];if(!s.pathDirty){delete patch.original_path;delete patch.annotated_path}}else{patch={...row};delete patch.id}
-        if(Object.keys(patch).length){const upd=check(await sb.from('photos').update(patch).eq('id',ph.id).select('id'))||[];if(!upd.length){s.gone=true;continue}s.base={...(s.base||rowBase(row)),...patch}}}
+        if(Object.keys(patch).length){const upd=check(await sb.from('photos').update(patch).eq('id',ph.id).select('id'))||[];if(!upd.length){s.gone=true;return}s.base={...(s.base||rowBase(row)),...patch}}}
       else{check(await sb.from('photos').upsert(row,{onConflict:'id'}));s.base=rowBase(row)}s.meta=op.f;s.row=true;s.pathDirty=false;
       // Old copies replaced by a re-stamped photo or a new markup: tidy them out of storage (best effort).
-      if(s.cleanup){const gone=(s.old||[]).filter(x=>ownPath(p,ph,x)&&x!==s.orig&&x!==s.ann);if(gone.length){try{check(await sb.storage.from(BUCKET).remove(gone))}catch(e){console.warn('JobCam: old photo copy left in storage',e)}}s.cleanup=false}}
-    else if(op.t==='note'){if(!st.jobs[p.id])continue;check(await sb.from('notes').upsert(noteRow(p,op.l),{onConflict:'id'}));st.notes[op.l.id]=op.f}
-    done++;if(done%5===0)await saveState(st)}
-  await saveState(st);return planPush(await localLoad(),st,await loadDeleted()).filter(o=>!st.photos[o.ph?.id]?.gone).length}
+      if(s.cleanup){const gone=(s.old||[]).filter(x=>ownPath(p,ph,x)&&x!==s.orig&&x!==s.ann);if(gone.length){try{check(await sb.storage.from(BUCKET).remove(gone))}catch(e){console.warn('JobCam: old photo copy left in storage',e)}}s.cleanup=false}}}
+// Push order: every job record, then every note, then each photo on its own. One failure never blocks the rest;
+// failed items wait (4 s, 8 s, 16 s … up to 5 min) unless the user taps Retry (force).
+async function push(st,force=false){const list=await localLoad(),del=await loadDeleted();const ops=planPush(list,st,del),now=Date.now();
+  const skip=op=>{const f=failures[failKey(op)];return !force&&f&&f.next>now};
+  for(const op of ops.filter(o=>o.t==='job')){if(skip(op))continue;try{check(await sb.from('jobs').upsert(jobRow(op.p),{onConflict:'id'}));st.jobs[op.p.id]=op.f;clearFail(op)}catch(e){noteFail(op,e)}}
+  await saveState(st);
+  for(const op of ops.filter(o=>o.t==='note')){if(!st.jobs[op.p.id]||skip(op))continue;try{check(await sb.from('notes').upsert(noteRow(op.p,op.l),{onConflict:'id'}));st.notes[op.l.id]=op.f;clearFail(op)}catch(e){noteFail(op,e)}}
+  const order={orig:0,reorig:1,ann:2,meta:3},byPhoto=new Map();for(const o of ops)if(o.ph){if(!byPhoto.has(o.ph.id))byPhoto.set(o.ph.id,[]);byPhoto.get(o.ph.id).push(o)}
+  let i=0;const total=byPhoto.size;
+  for(const [,group] of byPhoto){i++;const first=group[0];if(!st.jobs[first.p.id]||skip(first))continue;
+    if(total>1){progress='Uploading photos '+i+' of '+total+'…';teamUI()}
+    try{for(const op of group.sort((a,b)=>order[a.t]-order[b.t]))await runPhotoOp(op,st);clearFail(first)}catch(e){noteFail(first,e)}
+    await saveState(st)}
+  progress='';await saveState(st);
+  return planPush(await localLoad(),st,await loadDeleted()).filter(o=>!st.photos[o.ph?.id]?.gone).length}
+// Per-photo cloud status for the banner and the little cloud icons.
+async function refreshStatus(st){st=st||await loadState();const list=await localLoad(),del=await loadDeleted();const ops=planPush(list,st,del).filter(o=>!(o.ph&&st.photos[o.ph.id]?.gone));
+  const waiting=new Set(ops.filter(o=>o.ph).map(o=>o.ph.id));const ps=new Map();let w=0,f=0;
+  for(const p of list){if(!syncable(p))continue;for(const ph of p.photos||[]){if(!SAFE.test(ph.id)||del[ph.id])continue;if(waiting.has(ph.id)){if(failures['photo:'+ph.id]||failures['job:'+p.id]){ps.set(ph.id,'fail');f++}else{ps.set(ph.id,'wait');w++}}else ps.set(ph.id,'up')}}
+  photoStatus=ps;waitingPhotos=w;failedPhotos=f;otherPending=ops.filter(o=>!o.ph).length+Object.keys(del).length;pendingCount=ops.length+Object.keys(del).length;statusReady=true;
+  const known=new Set(list.flatMap(p=>(p.photos||[]).map(ph=>ph.id)));for(const id of [...dlFailed.keys()])if(known.has(id))dlFailed.delete(id)}
+function scheduleRetry(){clearTimeout(retryTimer);const next=Math.min(...Object.values(failures).map(f=>f.next));if(Number.isFinite(next))retryTimer=setTimeout(()=>syncNow(),Math.max(1500,next-Date.now()+200))}
 // Run queued photo deletes: remove the photos row, then every file in that photo's own storage folder (original + any markups).
 async function deleteCloudPhoto(id,t,st){const folder=t.job+'/'+id;
   const row=check(await sb.from('photos').select('id,job_id,original_path,annotated_path').eq('id',id).maybeSingle());
@@ -186,13 +225,17 @@ async function pull(st){
   const del=await loadDeleted();
   const [jobs,allPhotos,notes]=[await fetchAll('jobs'),await fetchAll('photos'),await fetchAll('notes')];const photos=allPhotos.filter(r=>!del[r.id]);
   const localNow=await localLoad(),byId=new Map(localNow.map(p=>[p.id,p]));const images=new Map();
+  // Download new/changed team photos, 4 at a time, with progress. Failures are counted and shown (never hidden behind "everything uploaded").
+  const tasks=[];
   for(const r of photos){const local=byId.get(r.job_id)?.photos?.find(x=>x.id===r.id);const s=st.photos[r.id];
-    if(!local){try{images.set(r.id,{data:await download(r.original_path),ann:r.annotated_path?await download(r.annotated_path):null})}catch(e){console.warn('JobCam: photo will retry',e)}}
-    else{const img={};
+    if(!local){tasks.push(async()=>{try{images.set(r.id,{data:await download(r.original_path),ann:r.annotated_path?await download(r.annotated_path):null});dlFailed.delete(r.id)}catch(e){dlFailed.set(r.id,plain(e));console.warn('JobCam: photo will retry',e)}})}
+    else{const needOrig=s&&s.orig&&r.original_path!==s.orig&&!(s.old||[]).includes(r.original_path)&&(!local.dataRev||local.dataRev===s.origRev);const needAnn=r.annotated_path&&s&&s.ann!==r.annotated_path&&(!local.annotatedData||fp(local.annotatedData)===s.annFp);
       // Another phone re-stamped this photo (new date): fetch the new original unless this phone has its own re-stamp waiting, or the cloud still holds one of this phone's own older copies.
-      if(s&&s.orig&&r.original_path!==s.orig&&!(s.old||[]).includes(r.original_path)&&(!local.dataRev||local.dataRev===s.origRev)){try{img.data=await download(r.original_path)}catch(e){console.warn('JobCam: photo will retry',e)}}
-      if(r.annotated_path&&s&&s.ann!==r.annotated_path&&(!local.annotatedData||fp(local.annotatedData)===s.annFp)){try{img.ann=await download(r.annotated_path)}catch{}}
-      if(img.data||img.ann)images.set(r.id,img)}}
+      if(needOrig||needAnn)tasks.push(async()=>{const img={};if(needOrig){try{img.data=await download(r.original_path)}catch(e){console.warn('JobCam: photo will retry',e)}}if(needAnn){try{img.ann=await download(r.annotated_path)}catch{}}if(img.data||img.ann)images.set(r.id,img)})}}
+  const need=tasks.length;let doneN=0;
+  const worker=async()=>{while(tasks.length){const t=tasks.shift();await t();doneN++;if(need>1){progress='Downloading team photos '+doneN+' of '+need+'…';teamUI()}}};
+  await Promise.all([worker(),worker(),worker(),worker()]);progress='';
+  {const live=new Set(photos.map(r=>r.id));for(const id of [...dlFailed.keys()])if(!live.has(id))dlFailed.delete(id)}
   // Merge against the freshest in-memory copy to avoid clobbering edits made during downloads.
   const current=(Array.isArray(projects)?projects:[]).slice(),map=new Map(current.map(p=>[p.id,p])),changed=new Map();
   const edit=id=>{if(!changed.has(id)){const p=map.get(id);changed.set(id,{...p,tags:[...(p.tags||[])],photos:[...(p.photos||[])],logs:[...(p.logs||[])]})}return changed.get(id)};
@@ -216,23 +259,47 @@ async function pull(st){
   if(changed.size){if(window.jobcamNormalizeJob)for(const [id,p] of changed){const n=window.jobcamNormalizeJob(p);if(n)changed.set(id,n)}await localPersist([...changed.values()]);const fresh=Array.isArray(projects)?projects.slice():[];for(const [id,p] of changed){const i=fresh.findIndex(x=>x.id===id);if(i>=0)fresh[i]=p;else fresh.push(p)}projects=fresh;const dialogOpen=[...document.querySelectorAll('dialog')].some(d=>d.open);if(!dialogOpen&&!busy)render()}
   await saveState(st);return changed.size}
 async function syncNow(manual=false){
-  if(!admin)return;if(syncing){syncAgain=true;return}
-  if(!navigator.onLine){pendingCount=await pendingTotal();teamUI();return}
-  syncing=true;teamUI('Syncing…');
-  try{const st=await loadState();lastError='';pendingCount=await push(st);await processDeletes(st);const got=await pull(st);pendingCount=await push(st);pendingCount+=Object.keys(await loadDeleted()).length;lastSync=Date.now();if(manual)toast(got?'Synced. '+got+' job'+(got===1?'':'s')+' updated from the team.':'All synced.')}
-  catch(err){console.error(err);lastError=err.message||'Sync failed';try{pendingCount=await pendingTotal()}catch{}if(manual)toast('Not synced yet. It will retry automatically.')}
-  finally{syncing=false;teamUI();if(syncAgain){syncAgain=false;setTimeout(()=>syncNow(),500)}}}
-function scheduleSync(){clearTimeout(syncTimer);syncTimer=setTimeout(()=>syncNow(),3000)}
-// Every local save also queues an upload (the queue is "anything not yet in the cloud", so nothing is lost offline).
-try{const innerPersist=persist;persist=async function(list){const r=await innerPersist(list);if(admin)scheduleSync();return r}}catch{}
-window.addEventListener('online',()=>{if(admin)syncNow()});
-document.addEventListener('visibilitychange',()=>{if(admin&&document.visibilityState==='visible')syncNow()});
-setInterval(()=>{if(admin&&navigator.onLine&&document.visibilityState!=='hidden')syncNow()},60000);
+  if(!admin){if(hasStoredSession())retryAuth(manual);return}
+  if(syncing){syncAgain=true;if(manual)syncForce=true;return}
+  if(!navigator.onLine){try{await refreshStatus()}catch{}teamUI();return}
+  const force=manual||syncForce;syncForce=false;
+  syncing=true;teamUI();
+  try{const st=await loadState();if(!Object.keys(st.jobs||{}).length){progress='Loading your jobs and photos from the cloud…';teamUI()}
+    await push(st,force);await processDeletes(st);let got=0;
+    try{got=await pull(st);pullProblem=''}catch(e){pullProblem=plain(e);console.error('JobCam: download from cloud failed',e)}
+    progress='';await push(st,false);lastSync=Date.now();await refreshStatus(st);
+    const lf=latestFailure();lastError=lf?lf.msg:(pullProblem||'');
+    if(manual)toast(failedPhotos||waitingPhotos?(failedPhotos+waitingPhotos)+' photo'+(failedPhotos+waitingPhotos===1?'':'s')+' still not uploaded. '+(lastError||'Retrying.'):dlFailed.size?dlFailed.size+' team photo'+(dlFailed.size===1?'':'s')+' couldn’t download yet.':got?'Synced. '+got+' job'+(got===1?'':'s')+' updated from the team.':'All synced.')}
+  catch(err){console.error(err);lastError=plain(err);try{await refreshStatus()}catch{}if(manual)toast('Not synced yet: '+lastError+' It will retry automatically.')}
+  finally{syncing=false;progress='';teamUI();if(Object.keys(failures).length)scheduleRetry();if(syncAgain){syncAgain=false;setTimeout(()=>syncNow(),500)}}}
+let syncForce=false;
+function scheduleSync(){clearTimeout(syncTimer);syncTimer=setTimeout(()=>syncNow(),250)}
+// Every local save immediately starts a cloud upload (the phone copy is the backup / offline queue).
+try{const innerPersist=persist;persist=async function(list){const r=await innerPersist(list);if(admin)scheduleSync();else refreshStatus().then(()=>teamUI()).catch(()=>{});return r}}catch{}
+// Stay in step with the team: live updates (Supabase Realtime) plus a 30-second refresh, and on focus / back online / app reopened.
+const POLL_MS=30000;
+function kick(){if(document.visibilityState==='hidden')return;if(admin)syncNow();else if(hasStoredSession())retryAuth()}
+window.addEventListener('online',kick);window.addEventListener('focus',kick);window.addEventListener('pageshow',e=>{if(e.persisted)kick()});
+document.addEventListener('visibilitychange',kick);
+window.addEventListener('offline',()=>teamUI());
+setInterval(()=>{if(navigator.onLine&&document.visibilityState!=='hidden')kick()},POLL_MS);
+let rtChannel=null,rtTimer=null,rtStatus='off';
+function startRealtime(){if(rtChannel||!sb)return;try{rtChannel=sb.channel('jobcam-team-sync');for(const table of ['jobs','photos','notes'])rtChannel.on('postgres_changes',{event:'*',schema:'public',table},()=>{clearTimeout(rtTimer);rtTimer=setTimeout(()=>syncNow(),600)});
+  rtChannel.subscribe((status,err)=>{rtStatus=String(status||'');if(/ERROR|TIMED_OUT|CLOSED/.test(rtStatus))console.warn('JobCam: live updates unavailable ('+rtStatus+'); using the 30-second refresh instead',err||'')})}catch(e){rtStatus='error';console.warn('JobCam: live updates unavailable; using the 30-second refresh instead',e)}}
+// Sign-in check that keeps retrying while online (a weak signal on site must never leave sync switched off).
+let authTimer=null,authTries=0,authBusy=false;
+async function retryAuth(now){if(admin||authBusy)return;if(authTimer){if(!now)return;clearTimeout(authTimer);authTimer=null}
+  if(!hasStoredSession())return;
+  if(!navigator.onLine){authProblem='';teamUI();return}
+  authBusy=true;
+  try{const ok=await becomeAdmin();authTries=0;authProblem='';if(!ok&&navigator.onLine&&!admin){teamUI();if(await showGate({message:'Please sign in again.'}))await becomeAdmin()}}
+  catch(err){authTries++;authProblem=plain(err);console.warn('JobCam: sign-in check failed, retrying',err);authTimer=setTimeout(()=>{authTimer=null;retryAuth()},Math.min(60000,2000*Math.pow(2,Math.min(authTries,5))))}
+  finally{authBusy=false;teamUI()}}
 
 const ROLE={owner:'Owner',carpenter:'Carpenter',marketing:'Marketing'};
 async function becomeAdmin(){const client=await adminClient();const session=check(await client.auth.getSession()).session;if(!session){admin=null;teamUI();return false}
   const row=(check(await client.rpc('am_i_admin'))||[])[0];if(!row?.is_admin){admin=null;await client.auth.signOut();teamUI('That account is not on the JobCam team list.');return false}
-  admin={role:row.role_label,email:session.user?.email||''};teamUI();syncNow();if(typeof current!=='undefined'&&current)renderDetail();return true}
+  admin={role:row.role_label,email:session.user?.email||''};authProblem='';teamUI();startRealtime();try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist().catch(()=>{})}catch{}syncNow();if(typeof current!=='undefined'&&current)renderDetail();return true}
 function friendlyAuthError(err,kind){const m=String(err&&err.message||err||'');
   if(!navigator.onLine||/failed to fetch|network|load failed|import|dynamically imported/i.test(m))return kind==='reset'?'No internet connection. Sending a reset link needs internet.':'No internet connection. Signing in needs internet the first time.';
   if(/expired|invalid.*(otp|token|link)|otp_expired|same token/i.test(m))return 'This reset link is invalid or has expired. Request a new one.';
@@ -334,17 +401,45 @@ function showGate(opts){opts=opts||{};if(gateOpen)return gateOpen;
     setTimeout(()=>{if(rec.kind!=='none'){if(rec.kind!=='error')q('#tgNewPassword').focus();return}const em=q('#tgEmail');(em.value?q('#tgPassword'):em).focus()},60)});
   return gateOpen}
 window.JobcamGate={show:showGate};
+// Main-screen banner (always visible under the header) + cloud icons on job cards and photos.
+function bannerState(){const stored=hasStoredSession();
+  if(!admin){if(!stored)return null;if(!navigator.onLine)return {cls:'warn',text:'Offline. New photos are saved on this phone and will upload when you have signal.',retry:false};
+    if(authProblem)return {cls:'bad',text:'Not connected to the team cloud: '+authProblem+' Photos are safe on this phone.',retry:true};return {cls:'busy',text:'Connecting to the team cloud…',retry:false}}
+  if(progress)return {cls:'busy',text:progress,retry:false};
+  const n=failedPhotos+waitingPhotos;
+  if(!statusReady)return {cls:'busy',text:'Checking uploads…',retry:false};
+  if(n){const words=n+' photo'+(n===1?'':'s')+' not uploaded yet.';
+    if(!navigator.onLine)return {cls:'warn',text:words+' No signal. They’re safe on this phone and will upload when you’re back online.',retry:false};
+    if(failedPhotos||lastError)return {cls:'bad',text:words+' '+(lastError||'Upload failed.')+' Kept safe on this phone.',retry:true};
+    return {cls:'warn',text:words+' Uploading… keep JobCam open.',retry:true}}
+  if(otherPending)return {cls:'warn',text:otherPending+' change'+(otherPending===1?'':'s')+' not uploaded yet.'+(lastError?' '+lastError:''),retry:true};
+  if(dlFailed.size)return {cls:'warn',text:dlFailed.size+' team photo'+(dlFailed.size===1?'':'s')+' couldn’t download to this phone yet. '+([...dlFailed.values()][0]||''),retry:true};
+  if(pullProblem)return {cls:'warn',text:'Couldn’t check the cloud for team updates: '+pullProblem,retry:true};
+  return {cls:'ok',text:'☁ All photos uploaded'+(lastSync?' · checked '+fmtTime(lastSync):''),retry:false}}
+function renderBanner(){const header=q('.header');if(!header)return;let b=q('#syncBanner');if(!b){b=document.createElement('div');b.id='syncBanner';b.setAttribute('role','status');b.setAttribute('aria-live','polite');b.innerHTML='<span id="syncBannerText"></span><button type="button" id="syncRetry">Retry</button>';header.append(b);q('#syncRetry').onclick=()=>{if(admin)syncNow(true);else retryAuth(true)}}
+  const s=bannerState();if(!s){b.hidden=true;return}b.hidden=false;b.className=s.cls;q('#syncBannerText').textContent=s.text;q('#syncRetry').hidden=!s.retry;q('#syncRetry').disabled=syncing}
+const CLOUD_ICON={up:['☁✓','Uploaded to the cloud'],wait:['⏳','Waiting to upload'],fail:['⚠','Not uploaded yet — will retry']};
+function jobBadge(p){if(!admin||!statusReady||!p||!syncable(p))return '';const ids=(p.photos||[]).map(ph=>photoStatus.get(ph.id)).filter(Boolean);if(!ids.length)return '';const f=ids.filter(x=>x==='fail').length,w=ids.filter(x=>x==='wait').length;
+  if(f)return '<span class="cloud-badge fail">⚠ '+(f+w)+' not uploaded</span>';if(w)return '<span class="cloud-badge wait">⏳ '+w+' uploading</span>';return '<span class="cloud-badge up">☁✓ Uploaded</span>'}
+function photoBadge(id){const st=admin&&statusReady?photoStatus.get(id):null;if(!st)return '';const [icon,label]=CLOUD_ICON[st];return '<span class="cloud-dot '+st+'" title="'+label+'" aria-label="'+label+'">'+icon+'</span>'}
+function paintBadges(){document.querySelectorAll('[data-cloud-job]').forEach(el=>{const p=(Array.isArray(projects)?projects:[]).find(x=>x.id===el.dataset.cloudJob);el.innerHTML=jobBadge(p)});document.querySelectorAll('[data-cloud-photo]').forEach(el=>{el.innerHTML=photoBadge(el.dataset.cloudPhoto)})}
+try{const baseCardFn=card;card=function(p){const html=baseCardFn(p);return html.replace('</h3>','</h3><span class="cloud-job" data-cloud-job="'+h(p.id)+'">'+jobBadge(p)+'</span>')}}catch(e){console.warn('JobCam: job card badge unavailable',e)}
+try{const basePhotoCardFn=photoCard;photoCard=function(p,ph,editable){const html=basePhotoCardFn(p,ph,editable);const i=html.indexOf('</button>');if(i<0)return html;return html.slice(0,i)+'<span class="cloud-photo" data-cloud-photo="'+h(ph.id)+'">'+photoBadge(ph.id)+'</span>'+html.slice(i)}}catch(e){console.warn('JobCam: photo badge unavailable',e)}
 function teamUI(msg){
+  try{renderBanner();paintBadges()}catch(e){console.warn('JobCam: banner',e)}
   const btn=q('#settingsButton'),lbl=q('#accountLabel'),stored=hasStoredSession();
   if(btn&&lbl){if(admin){const r=ROLE[admin.role]||'Account';lbl.textContent=r;btn.classList.add('signed-in');btn.setAttribute('aria-label','Account, signed in as '+r)}else if(stored){lbl.textContent='Account';btn.classList.add('signed-in');btn.setAttribute('aria-label','Account')}else{lbl.textContent='Sign in';btn.classList.remove('signed-in');btn.setAttribute('aria-label','Team sign-in')}}
-  const sn=q('#storageNote');if(sn)sn.textContent=admin?'Photos are saved online in your team’s private cloud and sync across your team’s phones.':'Sign in to save and sync job photos online with your team.';
+  const sn=q('#storageNote');if(sn)sn.textContent=admin?'Photos upload to your team’s private cloud first; this phone keeps a backup copy and holds anything waiting for signal.':'Sign in to save and sync job photos online with your team.';
   const box=q('#teamBox');if(!box)return;
   if(admin){const r=ROLE[admin.role]||'Team member';q('#acctName').textContent='Signed in · '+r;q('#acctEmail').textContent=admin.email||'';q('#acctAvatar').textContent=(admin.email||r).charAt(0).toUpperCase()}
   else{q('#acctName').textContent=stored?'Signed in':'Not signed in';q('#acctEmail').textContent='';q('#acctAvatar').textContent='?'}
   q('#teamSync').hidden=!admin;q('#teamSignOut').hidden=!(admin||stored);q('#teamSignInBtn').hidden=!!(admin||stored);
-  let text=msg||'';if(!text){if(!admin)text=stored?(navigator.onLine?'Checking your sign-in…':'Offline. New photos save on this phone and upload when you’re back online.'):'';else{text=(syncing?'Syncing…':pendingCount?pendingCount+' change'+(pendingCount===1?'':'s')+' waiting to upload'+(navigator.onLine?'':' (offline — uploads when you’re back online)')+'.':'Everything is uploaded.')+(lastSync?' Last sync '+fmtTime(lastSync)+' (UTC−5).':'')+(lastError?'\nLast problem: '+lastError:'')}}
+  let text=msg||'';if(!text){const s=bannerState();text=s?s.text.replace(/^☁ /,''):'';if(admin){if(lastError&&!/Last problem/.test(text)&&!text.includes(lastError))text+='\nLast problem: '+lastError;text+='\nLive updates: '+(rtStatus==='SUBSCRIBED'?'on':'off (checking every 30 seconds)')+'.'}}
   q('#teamStatus').textContent=text;q('#teamStatus').hidden=!text}
-async function signOutTeam(){try{await sb.auth.signOut({scope:'local'})}catch{}try{localStorage.removeItem('jobcam-admin-auth')}catch{}admin=null;location.reload()}
+// Signing out never deletes this phone's photos or its upload queue; warn first if anything hasn't reached the cloud.
+async function signOutTeam(){try{await refreshStatus()}catch{}const n=failedPhotos+waitingPhotos,o=otherPending;
+  if((n||o)&&!confirm((n?n+' photo'+(n===1?'':'s'):'')+(n&&o?' and ':'')+(o?o+' other change'+(o===1?'':'s'):'')+' haven’t reached the cloud yet. They stay saved on this phone and upload after someone on the team signs in here again. Sign out anyway?'))return;
+  try{await sb.auth.signOut({scope:'local'})}catch{}try{localStorage.removeItem('jobcam-admin-auth')}catch{}admin=null;location.reload()}
 function addTeamBox(){if(q('#teamBox'))return;const legacy=q('.cloud-setup');if(legacy)legacy.hidden=true;const dlg=q('#settingsDialog');
   const box=document.createElement('section');box.className='team-box';box.id='teamBox';
   box.innerHTML='<div class="acct-row"><span class="acct-avatar" id="acctAvatar" aria-hidden="true">?</span><div><strong id="acctName">Not signed in</strong><small id="acctEmail"></small></div></div><p class="v2-status" id="teamStatus" style="white-space:pre-line"></p><div class="team-row"><button class="primary" id="teamSignInBtn" type="button">Sign in</button><button class="secondary" id="teamSync" type="button">Sync now</button><button class="secondary" id="teamSignOut" type="button">Sign out</button></div>';
@@ -377,12 +472,20 @@ async function openShare(){const p=getCurrent();if(!p||!admin)return;const d=sha
 try{const innerDetail=renderDetail;renderDetail=function(){innerDetail();try{const p=getCurrent();if(!p||!admin||p.demo)return;const tools=q('.v2-tools');if(!tools||q('#shareClientButton'))return;const b=document.createElement('button');b.className='primary';b.id='shareClientButton';b.type='button';b.textContent='Share with client';b.style.gridColumn='1 / -1';b.onclick=openShare;tools.append(b)}catch(err){console.error('JobCam: share button failed',err)}}}catch{}
 
 /* Boot: wait for the notebook to finish loading (after the install passcode). */
-(function boot(){if(!window.jobcamReady){setTimeout(boot,200);return}addTeamBox();const off=q('#offlineStatus');if(off)off.textContent=off.textContent.replace('Cloud mode requires a connection; it has no offline sync queue.','');if(recoveryFromUrl().kind!=='none'){showGate().then(ok=>{if(ok)becomeAdmin().catch(()=>teamUI())})}else if(hasStoredSession()){const go=()=>becomeAdmin().then(async ok=>{if(!ok&&navigator.onLine&&!hasStoredSession()){if(await showGate({message:'Please sign in again.'}))becomeAdmin().catch(()=>teamUI())}}).catch(err=>{teamUI(navigator.onLine?'Couldn’t check your sign-in: '+err.message:'');if(!navigator.onLine)window.addEventListener('online',()=>{if(!admin)becomeAdmin().catch(()=>{})},{once:true})});go()}else if(navigator.onLine){showGate().then(ok=>{if(ok)becomeAdmin().catch(()=>teamUI())})}})();
+const css26=document.createElement('style');css26.textContent=`
+.header{flex-wrap:wrap}#syncBanner{flex-basis:100%;order:50;display:flex;gap:10px;align-items:center;margin-top:10px;border-radius:10px;padding:8px 10px;font-size:14px;font-weight:700;line-height:1.3}#syncBanner[hidden]{display:none}#syncBanner span{flex:1;min-width:0}
+#syncBanner.ok{background:#16301f;border:1px solid #4f8a5f;color:#cfe8d5;font-weight:600;font-size:13px;padding:5px 10px}#syncBanner.busy{background:#1d2a36;border:1px solid #5b7fa3;color:#dbe8f5}
+#syncBanner.warn{background:#4a3410;border:2px solid #f0b43c;color:#fff}#syncBanner.bad{background:#3a0d14;border:2px solid #ff5c74;color:#fff}
+#syncBanner button{min-height:42px;padding:4px 16px;border-radius:10px;background:#fff;color:#111;font-weight:800;border:0;flex-shrink:0}#syncBanner button[hidden]{display:none}
+.cloud-job{display:block}.cloud-badge{display:inline-block;font-size:11px;font-weight:700;border-radius:6px;padding:2px 6px;margin:2px 0}.cloud-badge.up{background:#1d3a26;color:#bfe3c8}.cloud-badge.wait{background:#4a3410;color:#ffe2a8}.cloud-badge.fail{background:#5a1220;color:#ffd0d8}
+.photo-open{position:relative}.cloud-dot{position:absolute;top:6px;right:6px;font-size:13px;font-weight:800;border-radius:8px;padding:2px 6px;line-height:1.2;pointer-events:none}.cloud-dot.up{background:#1d3a26e6;color:#bfe3c8}.cloud-dot.wait{background:#4a3410e6;color:#ffe2a8}.cloud-dot.fail{background:#7e0a1de6;color:#fff}
+`;document.head.append(css26);
+(function boot(){if(!window.jobcamReady){setTimeout(boot,200);return}addTeamBox();refreshStatus().then(()=>teamUI()).catch(()=>{});const off=q('#offlineStatus');if(off)off.textContent=off.textContent.replace('Cloud mode requires a connection; it has no offline sync queue.','');if(recoveryFromUrl().kind!=='none'){showGate().then(ok=>{if(ok)becomeAdmin().catch(()=>teamUI())})}else if(hasStoredSession()){teamUI();retryAuth()}else if(navigator.onLine){showGate().then(ok=>{if(ok)becomeAdmin().catch(()=>teamUI())})}})();
 /* Delete photo hook (called by v2.js before the local delete is saved): queue the cloud delete so it runs now or on the next sync. */
 window.jobcamPhotoDeleteHook=async function(p,ph){if(!syncable(p)||!SAFE.test(ph.id))return {message:'Photo deleted.'};
   let st=null;try{st=await loadState()}catch{}const s=st?.photos?.[ph.id]||{};
   await updateDeleted(d=>{d[ph.id]={job:p.id,paths:[s.orig,s.ann].filter(Boolean),at:new Date().toISOString()}});
   if(admin&&navigator.onLine)scheduleSync();
   return {undo:()=>updateDeleted(d=>{delete d[ph.id]}),message:admin&&navigator.onLine?'Photo deleted. Removing it from every phone and the client link.':'Photo deleted on this phone. It’ll be removed from the cloud and other phones when you’re back online.'}};
-window.JobcamTeam={syncNow,state:loadState,deleted:loadDeleted,get admin(){return admin},get canDelete(){return !!admin||hasStoredSession()},get pending(){return pendingCount}};
+window.JobcamTeam={syncNow,state:loadState,deleted:loadDeleted,refreshStatus,get admin(){return admin},get canDelete(){return !!admin||hasStoredSession()},get pending(){return pendingCount},get waitingPhotos(){return waitingPhotos},get failedPhotos(){return failedPhotos},get failures(){return JSON.parse(JSON.stringify(failures))},get downloadFailed(){return dlFailed.size},get realtime(){return rtStatus},get lastError(){return lastError},get banner(){return bannerState()}};
 })();
