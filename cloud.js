@@ -42,8 +42,8 @@ const isStandalone=()=>{try{return matchMedia('(display-mode: standalone)').matc
 const isIOS=()=>/iPhone|iPad|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
 function installCard(code){if(isStandalone())return '';const pretty=String(code||'').toUpperCase().replace(/[^A-Z0-9]/g,'').replace(/(.{4})(?=.)/g,'$1-');
   if(isIOS())return '<div class="client-install ios" id="clientInstall"><strong>Keep this on your home screen</strong><p>In Safari, tap Share (the square with an arrow), then “Add to Home Screen”.'+(pretty.length===14?' If the home-screen app asks, tap “Opening a client project?” and enter <code>'+h(pretty)+'</code>.':'')+'</p></div>';
-  return '<div class="client-install android" id="clientInstall"><strong>Get the JobCam app</strong><p>One tap adds JobCam to your home screen. It opens straight to this project.</p><button class="primary wide" id="clientInstallBtn" type="button">Install JobCam app</button></div>'}
-function bindInstallCard(){const b=q('#clientInstallBtn');if(!b)return;const done=()=>{const c=q('#clientInstall');if(c){c.classList.remove('android');c.innerHTML='<strong>JobCam is installed</strong><p>Open JobCam from your home screen any time. It goes straight to this project.</p>'}};
+  return '<div class="client-install android" id="clientInstall"><strong>Get the CarpenterCam app</strong><p>One tap adds CarpenterCam to your home screen. It opens straight to this project.</p><button class="primary wide" id="clientInstallBtn" type="button">Install CarpenterCam app</button></div>'}
+function bindInstallCard(){const b=q('#clientInstallBtn');if(!b)return;const done=()=>{const c=q('#clientInstall');if(c){c.classList.remove('android');c.innerHTML='<strong>CarpenterCam is installed</strong><p>Open CarpenterCam from your home screen any time. It goes straight to this project.</p>'}};
   b.onclick=async()=>{const p=window.jobcamInstallPrompt;if(!p)return;b.disabled=true;try{await p.prompt();const r=await p.userChoice;if(r&&r.outcome==='accepted'){window.jobcamInstallPrompt=null;document.documentElement.classList.remove('can-install');done()}}catch{}finally{b.disabled=false}};
   window.addEventListener('appinstalled',done,{once:true})}
 async function startClient(){
@@ -153,8 +153,8 @@ const SYSTEMIC=/folder \(job-photos\) is missing|refused|No connection|sign-in e
 const BACKOFF=n=>Math.min(300000,4000*Math.pow(2,Math.max(0,n-1)));
 // Turn any cloud/network error into plain words for the crew.
 function plain(err){const m=String(err&&err.message||err||'');
-  if(/bucket not found|nosuchbucket/i.test(m))return 'The cloud photo folder (job-photos) is missing. Kyler needs to run the JobCam storage setup in Supabase.';
-  if(/row-level security|violates|unauthori[sz]ed|permission denied|not allowed|forbidden|\b403\b/i.test(m))return 'The cloud refused the photo (no permission). This account may not be on the JobCam team list, or the storage rules are missing.';
+  if(/bucket not found|nosuchbucket/i.test(m))return 'The cloud photo folder (job-photos) is missing. Kyler needs to run the CarpenterCam storage setup in Supabase.';
+  if(/row-level security|violates|unauthori[sz]ed|permission denied|not allowed|forbidden|\b403\b/i.test(m))return 'The cloud refused the photo (no permission). This account may not be on the CarpenterCam team list, or the storage rules are missing.';
   if(/jwt|token.*expired|invalid claim|refresh token|not authenticated/i.test(m))return 'Your sign-in expired. Open Account and sign in again.';
   if(/mime|content.?type|not supported|invalid.*type/i.test(m))return 'The cloud rejected the photo format.';
   if(/payload too large|entity too large|\b413\b|maximum allowed size|exceeded the maximum/i.test(m))return 'The photo is too big for the cloud.';
@@ -307,7 +307,7 @@ async function retryAuth(now){if(admin||authBusy)return;if(authTimer){if(!now)re
 
 const ROLE={owner:'Owner',carpenter:'Carpenter',marketing:'Marketing'};
 async function becomeAdmin(){const client=await adminClient();const session=check(await client.auth.getSession()).session;if(!session){admin=null;teamUI();return false}
-  const row=(check(await client.rpc('am_i_admin'))||[])[0];if(!row?.is_admin){admin=null;await client.auth.signOut();teamUI('That account is not on the JobCam team list.');return false}
+  const row=(check(await client.rpc('am_i_admin'))||[])[0];if(!row?.is_admin){admin=null;await client.auth.signOut();teamUI('That account is not on the CarpenterCam team list.');return false}
   admin={role:row.role_label,email:session.user?.email||''};authProblem='';teamUI();startRealtime();try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist().catch(()=>{})}catch{}syncNow();if(typeof current!=='undefined'&&current)renderDetail();return true}
 function friendlyAuthError(err,kind){const m=String(err&&err.message||err||'');
   if(!navigator.onLine||/failed to fetch|network|load failed|import|dynamically imported/i.test(m))return kind==='reset'?'No internet connection. Sending a reset link needs internet.':'No internet connection. Signing in needs internet the first time.';
@@ -336,14 +336,14 @@ function showGate(opts){opts=opts||{};if(gateOpen)return gateOpen;
       +'<form id="teamGateReset" hidden novalidate>'+pwField('tgNewPassword','tgShowNew','new-password','New password')+pwField('tgNewPassword2','tgShowNew2','new-password','Confirm new password')
       +'<p class="tg-error" id="tgResetError" role="alert" aria-live="assertive"></p><button class="primary" id="tgResetSubmit" type="submit">Save new password</button><button class="text-btn" id="tgResetForgot" type="button">Request a new link</button></form>'
       +'<p class="tg-foot" id="tgFoot">You’ll stay signed in on this phone until you sign out.</p>'
-      +'<button class="secondary" id="tgInstall" type="button">Install JobCam app</button>'
+      +'<button class="secondary" id="tgInstall" type="button">Install CarpenterCam app</button>'
       +'<button class="text-btn" id="tgCancel" type="button" hidden>Not now</button>'
       +'<button class="text-btn" id="tgClient" type="button" hidden>Opening a client project?</button><form id="tgClientForm" hidden><label class="field">Client code<input id="tgClientCode" autocapitalize="characters" maxlength="20" placeholder="XXXX-XXXX-XXXX" required></label><button class="secondary wide" type="submit">Open my project</button></form></div>';
     document.body.append(g);
     const bindToggle=(inputId,btnId)=>{q('#'+btnId).onclick=()=>{const pw=q('#'+inputId),on=pw.type==='password';pw.type=on?'text':'password';q('#'+btnId).textContent=on?'Hide':'Show';q('#'+btnId).setAttribute('aria-pressed',String(on));q('#'+btnId).setAttribute('aria-label',on?'Hide password':'Show password')}};
     bindToggle('tgPassword','tgShow');bindToggle('tgNewPassword','tgShowNew');bindToggle('tgNewPassword2','tgShowNew2');
     q('#tgInstall').onclick=async()=>{const p=window.jobcamInstallPrompt;if(!p)return;await p.prompt();await p.userChoice;window.jobcamInstallPrompt=null;document.documentElement.classList.remove('can-install')};
-    // iPhone home-screen apps can't see the Safari link, so a client who added JobCam there gets one small fallback.
+    // iPhone home-screen apps can't see the Safari link, so a client who added CarpenterCam there gets one small fallback.
     if(isIOS()&&isStandalone()){q('#tgClient').hidden=false;q('#tgClient').onclick=()=>{q('#tgClientForm').hidden=false;q('#tgClientCode').focus()};q('#tgClientForm').onsubmit=e=>{e.preventDefault();location.hash='client='+q('#tgClientCode').value.trim();location.reload()}}
   }
   const hideApp=on=>['.header','.bottom-nav','#main'].forEach(sel=>{const el=q(sel);if(!el)return;if(on)el.setAttribute('hidden','');else el.removeAttribute('hidden')});
@@ -373,7 +373,7 @@ function showGate(opts){opts=opts||{};if(gateOpen)return gateOpen;
       btn.disabled=true;btn.textContent='Signing in…';err.textContent='';
       try{const client=await adminClient();const r=await client.auth.signInWithPassword({email,password:pw});if(r.error)throw r.error;
         const row=(check(await client.rpc('am_i_admin'))||[])[0];
-        if(!row?.is_admin){try{await client.auth.signOut()}catch{}try{localStorage.removeItem('jobcam-admin-auth')}catch{}throw Error('This account isn’t on the JobCam team list. Ask the owner to add it.')}
+        if(!row?.is_admin){try{await client.auth.signOut()}catch{}try{localStorage.removeItem('jobcam-admin-auth')}catch{}throw Error('This account isn’t on the CarpenterCam team list. Ask the owner to add it.')}
         q('#tgPassword').value='';close(true)}
       catch(e2){err.textContent=friendlyAuthError(e2);q('#tgPassword').select()}
       finally{btn.disabled=false;btn.textContent='Sign in'}};
@@ -394,7 +394,7 @@ function showGate(opts){opts=opts||{};if(gateOpen)return gateOpen;
       try{const client=await adminClient();const session=check(await client.auth.getSession()).session;if(!session)throw Error('This reset link is invalid or has expired. Request a new one.');
         const r=await client.auth.updateUser({password:a});if(r.error)throw r.error;
         const row=(check(await client.rpc('am_i_admin'))||[])[0];
-        if(!row?.is_admin){try{await client.auth.signOut()}catch{}try{localStorage.removeItem('jobcam-admin-auth')}catch{}throw Error('This account isn’t on the JobCam team list. Ask the owner to add it.')}
+        if(!row?.is_admin){try{await client.auth.signOut()}catch{}try{localStorage.removeItem('jobcam-admin-auth')}catch{}throw Error('This account isn’t on the CarpenterCam team list. Ask the owner to add it.')}
         q('#tgNewPassword').value='';q('#tgNewPassword2').value='';cleanAuthUrl();close(true)}
       catch(e2){err.textContent=friendlyAuthError(e2,'password');q('#tgNewPassword').select()}
       finally{btn.disabled=false;btn.textContent='Save new password'}};
@@ -420,7 +420,7 @@ function bannerState(){const stored=hasStoredSession();
   if(n){const words=n+' photo'+(n===1?'':'s')+' not uploaded yet.';
     if(!navigator.onLine)return {cls:'warn',text:words+' No signal. They’re safe on this phone and will upload when you’re back online.',retry:false};
     if(failedPhotos||lastError)return {cls:'bad',text:words+' '+(lastError||'Upload failed.')+' Kept safe on this phone.',retry:true};
-    return {cls:'warn',text:words+' Uploading… keep JobCam open.',retry:true}}
+    return {cls:'warn',text:words+' Uploading… keep CarpenterCam open.',retry:true}}
   if(otherPending)return {cls:'warn',text:otherPending+' change'+(otherPending===1?'':'s')+' not uploaded yet.'+(lastError?' '+lastError:''),retry:true};
   if(dlFailed.size)return {cls:'warn',text:dlFailed.size+' team photo'+(dlFailed.size===1?'':'s')+' couldn’t download to this phone yet. '+([...dlFailed.values()][0]||''),retry:true};
   if(pullProblem)return {cls:'warn',text:'Couldn’t check the cloud for team updates: '+pullProblem,retry:true};
@@ -464,7 +464,7 @@ function addTeamBox(){if(q('#teamBox'))return;const legacy=q('.cloud-setup');if(
   teamUI()}
 
 /* Share with client (admin, on a job) */
-function shareDialog(){if(q('#shareDialog'))return q('#shareDialog');return addDialog('shareDialog','Share with client','<div id="shareResult" hidden><div class="qr-card"><div class="qr-brand">Carpenter Johnny<small>JobCam · your project photos</small></div><div class="qr-box" id="shareQR"></div><p class="qr-scan">Scan to open your project</p></div><p class="caption" style="text-align:center">Have your client scan this with their phone camera. Shown once. Tap Share with client again for a new one.</p><p class="share-code" id="shareCode"></p><div class="share-secondary"><button class="secondary" id="shareCopy" type="button">Copy link</button><button class="secondary" id="shareSend" type="button">Send…</button></div><input class="share-link" id="shareLink" readonly hidden aria-label="Client link"></div><p class="v2-status" id="shareTopStatus" role="status"></p><p class="caption">Makes a private, view-only link to <strong>this job only</strong>. The client sees its photos and design note — never other jobs, daily notes or prices.</p><details class="share-opts"><summary>Link options (optional)</summary><label class="field">Job finished on (links run from this date)<input type="date" id="shareFinished"></label><button class="secondary wide" id="shareFinishSave" type="button">Save finish date</button><label class="field" style="margin-top:14px">Link lasts<select id="shareDays"><option value="30">30 days</option><option value="60">60 days</option><option value="90" selected>90 days after the job finishes</option><option value="180">180 days</option><option value="365">1 year</option></select></label><button class="primary wide" id="shareCreate" type="button">Make a new QR code</button></details><div class="section-head"><h2>Client links</h2></div><div id="shareList"><p class="caption">Loading…</p></div><p class="v2-status" id="shareStatus" role="status"></p>')}
+function shareDialog(){if(q('#shareDialog'))return q('#shareDialog');return addDialog('shareDialog','Share with client','<div id="shareResult" hidden><div class="qr-card"><div class="qr-brand">Carpenter Johnny<small>CarpenterCam · your project photos</small></div><div class="qr-box" id="shareQR"></div><p class="qr-scan">Scan to open your project</p></div><p class="caption" style="text-align:center">Have your client scan this with their phone camera. Shown once. Tap Share with client again for a new one.</p><p class="share-code" id="shareCode"></p><div class="share-secondary"><button class="secondary" id="shareCopy" type="button">Copy link</button><button class="secondary" id="shareSend" type="button">Send…</button></div><input class="share-link" id="shareLink" readonly hidden aria-label="Client link"></div><p class="v2-status" id="shareTopStatus" role="status"></p><p class="caption">Makes a private, view-only link to <strong>this job only</strong>. The client sees its photos and design note — never other jobs, daily notes or prices.</p><details class="share-opts"><summary>Link options (optional)</summary><label class="field">Job finished on (links run from this date)<input type="date" id="shareFinished"></label><button class="secondary wide" id="shareFinishSave" type="button">Save finish date</button><label class="field" style="margin-top:14px">Link lasts<select id="shareDays"><option value="30">30 days</option><option value="60">60 days</option><option value="90" selected>90 days after the job finishes</option><option value="180">180 days</option><option value="365">1 year</option></select></label><button class="primary wide" id="shareCreate" type="button">Make a new QR code</button></details><div class="section-head"><h2>Client links</h2></div><div id="shareList"><p class="caption">Loading…</p></div><p class="v2-status" id="shareStatus" role="status"></p>')}
 async function loadShares(jobId){const list=q('#shareList');try{const rows=check(await sb.from('client_access').select('id,code_hint,expires_at,revoked,last_used_at,created_at').eq('job_id',jobId).order('created_at',{ascending:false}))||[];const job=check(await sb.from('jobs').select('completed_on').eq('id',jobId).maybeSingle());q('#shareFinished').value=job?.completed_on||'';
   list.innerHTML=rows.length?rows.map(r=>{const live=!r.revoked&&new Date(r.expires_at)>new Date();return '<div class="share-item'+(live?'':' off')+'"><span>Code …'+h(r.code_hint)+'<br><small>'+(r.revoked?'Turned off':live?'Works until '+h(fmtDate(r.expires_at)):'Expired '+h(fmtDate(r.expires_at)))+(r.last_used_at?' · opened '+h(fmtDate(r.last_used_at)):' · not opened yet')+'</small></span>'+(live?'<button class="secondary" data-revoke="'+h(r.id)+'">Turn off</button>':'')+'</div>'}).join(''):'<p class="caption">No client links yet.</p>';
   list.querySelectorAll('[data-revoke]').forEach(b=>b.onclick=async()=>{b.disabled=true;try{check(await sb.from('client_access').update({revoked:true,revoked_at:new Date().toISOString()}).eq('id',b.dataset.revoke));toast('Client link turned off.');loadShares(jobId)}catch(err){q('#shareStatus').textContent='Could not turn off: '+err.message;b.disabled=false}})}

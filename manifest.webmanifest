@@ -1,7 +1,7 @@
 {
  "id": "/jobcam-prototype/jobcam-app-v3",
- "name": "JobCam",
- "short_name": "JobCam",
+ "name": "CarpenterCam",
+ "short_name": "CarpenterCam",
  "description": "Internal job photos for Carpenter Johnny's crew",
  "start_url": "/jobcam-prototype/?app=1",
  "scope": "/jobcam-prototype/",
@@ -10,25 +10,25 @@
  "theme_color": "#b01c22",
  "icons": [
   {
-   "src": "./icons/icon-192.png?v=2.6.2",
+   "src": "./icons/icon-192.png?v=2.6.3",
    "sizes": "192x192",
    "type": "image/png",
    "purpose": "any"
   },
   {
-   "src": "./icons/icon-512.png?v=2.6.2",
+   "src": "./icons/icon-512.png?v=2.6.3",
    "sizes": "512x512",
    "type": "image/png",
    "purpose": "any"
   },
   {
-   "src": "./icons/icon-maskable-512.png?v=2.6.2",
+   "src": "./icons/icon-maskable-512.png?v=2.6.3",
    "sizes": "512x512",
    "type": "image/png",
    "purpose": "maskable"
   },
   {
-   "src": "./icons/icon.svg?v=2.6.2",
+   "src": "./icons/icon.svg?v=2.6.3",
    "sizes": "any",
    "type": "image/svg+xml",
    "purpose": "any"
