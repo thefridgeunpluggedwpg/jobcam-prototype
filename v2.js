@@ -16,6 +16,26 @@ function addDialog(id,label,body){const d=document.createElement('dialog');d.id=
 const style=document.createElement('style');style.textContent=`
 .v2-tools{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:18px 0}.v2-tools button{font-size:13px;padding:11px 9px}.gps-line{display:block;font-size:11px;margin-top:8px;color:var(--green);overflow-wrap:anywhere}.gps-line a{display:inline-flex;min-height:44px;align-items:center;color:var(--green)}.metadata-tools{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}.metadata-tools button{font-size:13px}.check-label{display:flex;align-items:center;gap:10px;min-height:46px;font-size:13px}.check-label input{width:22px;min-height:22px;height:22px;flex:none;accent-color:var(--wood)}.v2-status{font-size:12px;color:var(--muted);margin:10px 0;line-height:1.7}.daily-entry{border:1px solid var(--line);background:var(--panel);border-radius:12px;padding:15px;margin-top:12px}.daily-entry p{font-size:13px;white-space:pre-wrap;overflow-wrap:anywhere;margin-top:9px}.daily-entry h3{font-size:14px}.report-controls{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}.report-controls label{font-size:12px}.report-controls input{margin-top:6px}.viewer-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}.viewer-actions button{min-height:46px;font-size:13px}.viewer-actions a{color:var(--green);padding:10px}#viewer .viewer-stage{height:calc(100% - 235px);min-height:150px}#viewer .viewer-caption{white-space:pre-wrap;margin:10px auto;max-width:650px}#annotationDialog{max-width:950px}#annotationCanvas{display:block;width:100%;height:auto;touch-action:none;border:1px solid var(--line);border-radius:10px;background:var(--panel)}.mark-tools{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center}.mark-tools button{padding:9px 14px}.mark-tools button[aria-pressed=true]{background:var(--wood);color:var(--bg)}.mark-tools label{font-size:12px}.mark-tools input[type=color]{width:48px;height:46px;padding:4px}.mark-tools select{width:85px}.text-position{display:grid;grid-template-columns:1fr 1fr;gap:10px}.text-position label{font-size:12px}.text-position input{margin-top:5px}#textPlacement{margin:14px 0}.select-pair{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}.select-pair label{font-size:12px}.select-pair select{font-size:14px;margin-top:5px}.side-compare{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}.side-compare figure{margin:0;min-width:0}.side-compare img{width:100%;aspect-ratio:1.2;object-fit:contain;background:var(--panel);border-radius:10px}.side-compare figcaption{text-align:center;font-size:12px}.gallery-select{display:flex;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}.gallery-select input{width:22px;height:22px;min-height:22px;flex:none}.gallery-select img{width:70px;height:60px;object-fit:cover;border-radius:7px}.gallery-select span{font-size:12px;overflow-wrap:anywhere}.portfolio-open{margin:10px 0 20px}#portfolioDialog{width:100vw;height:100dvh;max-width:none;max-height:100dvh;border:0;border-radius:0;padding:20px;background:var(--bg)}.portfolio-frame{max-width:1100px;margin:auto}.portfolio-frame img{width:100%;height:52dvh;object-fit:contain;background:#101512;border-radius:14px}.portfolio-frame h2{margin-top:15px;font-size:28px}.portfolio-frame p{margin-top:10px;max-width:70ch;white-space:pre-wrap;overflow-wrap:anywhere}.portfolio-frame .toolbar{margin-bottom:15px}.portfolio-navigation{display:grid;grid-template-columns:1fr auto 1fr;gap:12px;align-items:center;margin:18px 0}.portfolio-navigation span{font-size:12px;color:var(--muted)}.version-label{display:block;text-align:center;color:var(--muted);font-size:12px;margin-top:20px}details.cloud-setup{border:1px solid var(--line);padding:12px;border-radius:12px;margin:18px 0}details.cloud-setup summary{min-height:44px;cursor:pointer;font-weight:600}#cloudStatus{white-space:pre-wrap;overflow-wrap:anywhere}#cloudConfig input{font-size:16px}button:active{filter:brightness(.9)}@media(max-width:360px){.container{padding-left:16px;padding-right:16px}.v2-tools{grid-template-columns:1fr}}@media(min-width:700px){.portfolio-frame img{height:60dvh}}
 .danger{background:#7e0a1d;color:#fff;border:2px solid #ff5c74;border-bottom-width:4px;border-radius:10px;font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:18px;letter-spacing:.8px;text-transform:uppercase;padding:13px 18px;min-height:52px;display:inline-flex;align-items:center;justify-content:center;gap:8px}.danger:active{transform:translateY(2px);border-bottom-width:2px}.danger-outline{background:transparent;color:#ff8a9a;border:2px solid #c8102e;border-radius:10px;font-weight:700;padding:11px 16px;display:inline-flex;align-items:center;justify-content:center;gap:6px}.photo-meta .photo-delete{width:100%;min-height:44px;margin-top:7px;font-size:13px;padding:6px 8px}.delete-preview{display:block;width:100%;max-height:220px;object-fit:contain;border-radius:10px;background:#000;margin:4px 0 12px}#deletePhotoText{font-size:16px;color:var(--ink)}.detail-problem{border-left-color:var(--red)!important;color:var(--ink)!important;font-size:14px!important}.app-problem{position:fixed;left:12px;right:12px;bottom:calc(92px + env(safe-area-inset-bottom));z-index:9000;display:flex;gap:10px;align-items:center;background:#3a0d14;color:#fff;border:2px solid #ff5c74;border-radius:12px;padding:10px 12px;font-size:14px;box-shadow:0 8px 30px #0009}.app-problem[hidden]{display:none}.app-problem span{flex:1}.app-problem button{min-height:40px;width:40px;border-radius:10px;background:transparent;color:#fff;border:1px solid #fff6;font-size:20px}.photo-meta .photo-date{width:100%;min-height:44px;margin-top:7px;font-size:13px;padding:6px 8px}.time-pick{border:2px solid var(--line);border-radius:12px;padding:10px 12px;margin:12px 0;background:var(--panel)}.time-pick>strong{display:block;font:700 15px 'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px}.time-seg{display:flex;gap:6px;flex-wrap:wrap}.time-seg button{flex:1 1 0;min-height:46px;padding:6px 8px;font-size:14px;border:2px solid #6b5848;background:var(--panel2);border-radius:10px;font-weight:700;color:var(--ink)}.time-seg button[aria-pressed=true]{background:var(--red);border-color:#fff;color:#fff}.time-pick input{margin-top:8px}.date-edit-preview{display:block;width:100%;max-height:200px;object-fit:contain;border-radius:10px;background:#000;margin:4px 0 12px}#dateEditForm input{font-size:18px;min-height:52px}.delete-actions{display:grid;gap:10px;margin-top:16px}.delete-actions button{min-height:54px;font-size:18px}
+/* v2.7.0 swipeable job photo viewer */
+html.viewer-open,html.viewer-open body{overflow:hidden;overscroll-behavior:none}
+#viewer{overflow:hidden!important;overscroll-behavior:none;touch-action:none;width:100%;max-width:none;height:100dvh;max-height:100dvh;margin:0;border:0!important;border-radius:0;border-top:0!important;padding:calc(10px + env(safe-area-inset-top,0px)) calc(10px + env(safe-area-inset-right,0px)) calc(12px + env(safe-area-inset-bottom,0px)) calc(10px + env(safe-area-inset-left,0px));background:#090e0b!important}
+#viewer .toolbar{margin-bottom:8px;gap:8px;align-items:center}
+#viewer .toolbar #viewerTitle{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#viewer .viewer-counter{flex:1;text-align:center;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+#viewer .toolbar .icon-btn{width:48px;min-width:48px;min-height:48px;flex:none;z-index:3}
+#viewer .viewer-stage{position:relative;overflow:hidden;height:calc(100% - 250px - env(safe-area-inset-bottom,0px));min-height:160px;touch-action:none;overscroll-behavior:none;-webkit-user-select:none;user-select:none}
+#viewer .viewer-frame{display:flex;width:300%;height:100%;transform:translate3d(-33.333%,0,0);will-change:transform}
+#viewer .viewer-frame.is-animating{transition:transform 240ms ease-out}
+@media (prefers-reduced-motion:reduce){#viewer .viewer-frame.is-animating{transition:none}}
+#viewer .viewer-frame>*{flex:0 0 33.333%;width:33.333%;height:100%;display:flex;align-items:center;justify-content:center;overflow:hidden;pointer-events:none}
+#viewer .viewer-peek,#viewer .viewer-current img,#viewer #viewerImage{max-width:100%;max-height:100%;object-fit:contain;-webkit-user-drag:none;pointer-events:none}
+#viewer .viewer-peek.is-empty{visibility:hidden}
+#viewer .viewer-current{touch-action:none}
+#viewer .viewer-nav{position:absolute;top:50%;transform:translateY(-50%);z-index:2;width:48px;min-width:48px;min-height:48px;height:48px;padding:0;border-radius:50%;background:#000000b3;border:1px solid #ffffff55;color:#fff;display:grid;place-items:center}
+#viewer .viewer-nav-prev{left:6px}
+#viewer .viewer-nav-next{right:6px}
+#viewer .viewer-nav:disabled{opacity:.35}
+#viewer .viewer-caption{margin:10px auto 0;max-width:650px;padding:0 8px}
 `;document.head.append(style);
 // Small storage boundary: same shape for browser-local and shared crew data.
 // Job records are normalised on load so an odd or older record (missing photos/tags, number id, cloud row without local fields) can never stop a job from opening.
@@ -42,7 +62,230 @@ const gpsArea=document.createElement('div');gpsArea.innerHTML='<button class="se
 $('#gpsButton').onclick=async()=>{const b=$('#gpsButton');if(!navigator.geolocation||!isSecureContext){$('#gpsStatus').textContent='GPS unavailable here. Photos can still be saved without it. Use HTTPS or localhost.';return}b.disabled=true;$('#gpsStatus').textContent='Finding location… You can deny permission and still save photos.';try{const pos=await new Promise((resolve,reject)=>navigator.geolocation.getCurrentPosition(resolve,reject,{enableHighAccuracy:true,timeout:10000,maximumAge:0}));uploadGPS={lat:pos.coords.latitude,lng:pos.coords.longitude,accuracy:pos.coords.accuracy,at:new Date(pos.timestamp||Date.now()).toISOString(),source:'Device at upload'};pending.forEach(ph=>ph.gps={...uploadGPS});$('#gpsStatus').textContent='Attached to this batch: '+displayGPS(uploadGPS)+' · device at upload, not historical photo location.'}catch(err){uploadGPS=null;pending.forEach(ph=>ph.gps=null);$('#gpsStatus').textContent=(err.code===1?'Location denied.':err.code===3?'Location timed out.':'Location unavailable.')+' Photos will save without GPS.'}finally{b.disabled=false}};
 // Viewer tools: original image remains in ph.data; marked-up result is a separate field.
 const viewerActions=document.createElement('div');viewerActions.className='viewer-actions';viewerActions.innerHTML='<button class="secondary" id="annotateButton">Mark up photo</button><button class="secondary" id="photoTagsButton">Tags & caption</button><button class="secondary" id="originalButton">Show original</button><button class="secondary" id="editDateButton" type="button">Edit date</button><button class="danger-outline" id="deletePhotoButton" type="button">Delete photo</button>';$('#viewerCaption').after(viewerActions);
-openPhoto=function(owner,id){photoSelection={owner,id};baseOpenPhoto(owner,id);const ph=projects.find(p=>p.id===owner)?.photos.find(ph=>ph.id===id);const canEdit=!cloudProfile||cloudProfile.role!=='sub'||ph?.cloudUserId===cloudProfile.id;$('#annotateButton').hidden=$('#photoTagsButton').hidden=!canEdit;$('#originalButton').hidden=!ph?.annotatedData;$('#deletePhotoButton').hidden=$('#editDateButton').hidden=!canDeletePhoto(ph);$('#originalButton').textContent='Show original';if(ph?.gps){$('#viewerCaption').textContent+='\nDevice at upload: '+displayGPS(ph.gps)+' · '+timeLabel(ph.gps.at)}if(ph?.caption)$('#viewerCaption').textContent+='\n'+ph.caption};
+openPhoto=function(owner,id){openJobViewer(owner,id)};
+/* v2.7.0: swipeable full-screen viewer for every photo on the job, in grid order. */
+(function(){
+  const viewer=$('#viewer'), stage=viewer&&viewer.querySelector('.viewer-stage'), img=$('#viewerImage');
+  if(!viewer||!stage||!img||viewer.dataset.galleryReady)return;
+  viewer.dataset.galleryReady='1';
+  stage.id='viewerStage';
+  const toolbar=viewer.querySelector('.toolbar');
+  const counter=document.createElement('span');
+  counter.id='viewerCounter';counter.className='viewer-counter';counter.setAttribute('aria-live','polite');
+  if(toolbar){const closeBtn=toolbar.querySelector('[data-close]');if(closeBtn)toolbar.insertBefore(counter,closeBtn);else toolbar.append(counter)}
+  const frame=document.createElement('div');frame.id='viewerFrame';frame.className='viewer-frame';
+  const peekPrev=document.createElement('img');peekPrev.id='viewerPeekPrev';peekPrev.className='viewer-peek';peekPrev.alt='';
+  const current=document.createElement('div');current.id='viewerCurrent';current.className='viewer-current';
+  const peekNext=document.createElement('img');peekNext.id='viewerPeekNext';peekNext.className='viewer-peek';peekNext.alt='';
+  img.replaceWith(frame);current.append(img);frame.append(peekPrev,current,peekNext);
+  const chevron=dir=>'<svg viewBox="0 0 24 24" aria-hidden="true">'+(dir==='prev'?'<path d="M15 5 8 12l7 7"/>':'<path d="M9 5l7 7-7 7"/>')+'</svg>';
+  const prevBtn=document.createElement('button');prevBtn.type='button';prevBtn.id='viewerPrev';prevBtn.className='viewer-nav viewer-nav-prev';prevBtn.setAttribute('aria-label','Previous photo');prevBtn.innerHTML=chevron('prev');
+  const nextBtn=document.createElement('button');nextBtn.type='button';nextBtn.id='viewerNext';nextBtn.className='viewer-nav viewer-nav-next';nextBtn.setAttribute('aria-label','Next photo');nextBtn.innerHTML=chevron('next');
+  stage.append(prevBtn,nextBtn);
+
+  let list=[], index=0, owner=null, scale=1, panX=0, panY=0, animating=false, scrollLockY=0;
+  const pointers=new Map();
+  let gesture=null, startX=0, startY=0, startT=0, startPanX=0, startPanY=0, startScale=1, startDist=0, startMidX=0, startMidY=0, dragX=0, dragY=0, lastTap=0, lastTapX=0, lastTapY=0;
+  const reduce=()=>window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const srcOf=ph=>{if(!ph)return '';try{const s=photoData(ph);return (s&&s!=='undefined')?s:''}catch{return ''}};
+  function jobPhotos(p){return p?PHASES.flatMap(phase=>p.photos.filter(x=>x.phase===phase).sort(byShotTime)):[]}
+  function lockPage(on){
+    const html=document.documentElement, body=document.body;
+    if(on){
+      scrollLockY=window.scrollY||0;
+      html.classList.add('viewer-open');
+      body.style.position='fixed';body.style.top='-'+scrollLockY+'px';body.style.left='0';body.style.right='0';body.style.width='100%';
+    }else{
+      html.classList.remove('viewer-open');
+      body.style.position=body.style.top=body.style.left=body.style.right=body.style.width='';
+      window.scrollTo(0,scrollLockY);
+    }
+  }
+  function pushViewerHistory(){if(!history.state||!history.state.carpenterViewer)history.pushState({carpenterViewer:true},'')}
+  function dropViewerHistory(){if(history.state&&history.state.carpenterViewer)history.back()}
+  function setFrame(dx,dy,animate){
+    frame.classList.toggle('is-animating',!!animate&&!reduce());
+    frame.style.transform='translate3d(calc(-33.333% + '+dx+'px), '+dy+'px, 0)';
+  }
+  function resetFrame(animate){setFrame(0,0,animate)}
+  function applyZoom(){
+    if(scale<=1.01){scale=1;panX=0;panY=0}
+    img.style.transform=scale===1?'':'translate('+panX+'px,'+panY+'px) scale('+scale+')';
+    stage.classList.toggle('is-zoomed',scale>1);
+  }
+  function resetZoom(){scale=1;panX=0;panY=0;applyZoom()}
+  function paint(id){
+    const p=projects.find(x=>x.id===owner), ph=p?.photos.find(x=>x.id===id);
+    if(!p||!ph)return;
+    photoSelection={owner,id};
+    const src=srcOf(ph);
+    img.src=src||'';
+    img.alt=ph.phase+' photo: '+p.name;
+    $('#viewerTitle').textContent=ph.phase+(p.demo?' · Demo':'');
+    let cap=(ph.stamp||'')+' · '+(ph.uploader||'Unknown uploader')+' · '+(ph.source||'');
+    if(ph.gps)cap+='\nDevice at upload: '+displayGPS(ph.gps)+' · '+timeLabel(ph.gps.at);
+    if(ph.caption)cap+='\n'+ph.caption;
+    if(!src)cap+=(cap?'\n':'')+'Photo is still downloading on this phone.';
+    $('#viewerCaption').textContent=cap;
+    const canEdit=!cloudProfile||cloudProfile.role!=='sub'||ph.cloudUserId===cloudProfile.id;
+    const ab=$('#annotateButton'),tb=$('#photoTagsButton'),ob=$('#originalButton'),db=$('#deletePhotoButton'),eb=$('#editDateButton');
+    if(ab)ab.hidden=!canEdit;if(tb)tb.hidden=!canEdit;
+    if(ob){ob.hidden=!ph.annotatedData;ob.textContent='Show original'}
+    if(db)db.hidden=!canDeletePhoto(ph);if(eb)eb.hidden=!canDeletePhoto(ph);
+  }
+  function chrome(){
+    const n=list.length;
+    counter.textContent=n?(index+1)+' / '+n:'';
+    prevBtn.hidden=nextBtn.hidden=n<2;
+    prevBtn.disabled=index<=0||n<2;
+    nextBtn.disabled=index>=n-1||n<2;
+    const prev=index>0?list[index-1]:null, next=index<n-1?list[index+1]:null;
+    peekPrev.src=prev?srcOf(prev):'';peekPrev.classList.toggle('is-empty',!prev);
+    peekNext.src=next?srcOf(next):'';peekNext.classList.toggle('is-empty',!next);
+    if(prev){const pre=new Image();pre.src=srcOf(prev)}
+    if(next){const pre=new Image();pre.src=srcOf(next)}
+  }
+  function go(delta,animate){
+    const next=index+delta;
+    if(next<0||next>=list.length){resetFrame(true);return}
+    const apply=()=>{
+      animating=false;index=next;resetZoom();paint(list[index].id);chrome();
+      frame.classList.remove('is-animating');resetFrame(false);
+    };
+    if(animate&&!reduce()){
+      animating=true;setFrame(delta>0?-stage.clientWidth:stage.clientWidth,0,true);
+      let finished=false;
+      const done=e=>{
+        if(finished||(e&&e.target!==frame))return;
+        finished=true;frame.removeEventListener('transitionend',done);apply();
+      };
+      frame.addEventListener('transitionend',done);
+      setTimeout(done,280);
+    }else apply();
+  }
+  window.openJobViewer=function(jobId,photoId){
+    owner=jobId;
+    const p=projects.find(x=>x.id===jobId);
+    list=jobPhotos(p);
+    const found=list.findIndex(ph=>ph.id===photoId);
+    index=found<0?0:found;
+    if(!list.length)return;
+    resetZoom();paint(list[index].id);chrome();resetFrame(false);
+    if(!viewer.open){lockPage(true);viewer.showModal();pushViewerHistory()}
+  };
+  prevBtn.onclick=()=>{if(!animating)go(-1,true)};
+  nextBtn.onclick=()=>{if(!animating)go(1,true)};
+  document.addEventListener('keydown',e=>{
+    if(!viewer.open||animating)return;
+    if(e.target.closest('input,textarea,select,[contenteditable]'))return;
+    if(e.key==='ArrowLeft'){e.preventDefault();go(-1,true)}
+    else if(e.key==='ArrowRight'){e.preventDefault();go(1,true)}
+  });
+  viewer.addEventListener('close',()=>{
+    resetZoom();pointers.clear();gesture=null;lockPage(false);dropViewerHistory();
+  });
+  window.addEventListener('popstate',()=>{
+    if(viewer.open)viewer.close();
+  });
+  function dist(a,b){const dx=a.x-b.x,dy=a.y-b.y;return Math.hypot(dx,dy)}
+  function mid(a,b){return {x:(a.x+b.x)/2,y:(a.y+b.y)/2}}
+  function resist(dx){
+    if(dx>0&&index<=0)return dx*0.28;
+    if(dx<0&&index>=list.length-1)return dx*0.28;
+    return dx;
+  }
+  stage.addEventListener('pointerdown',e=>{
+    if(e.target.closest('button'))return;
+    if(animating)return;
+    stage.setPointerCapture(e.pointerId);
+    pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(pointers.size===2){
+      const [a,b]=[...pointers.values()];
+      gesture='pinch';startScale=scale;startDist=dist(a,b)||1;const m=mid(a,b);startMidX=m.x;startMidY=m.y;startPanX=panX;startPanY=panY;
+      return;
+    }
+    startX=e.clientX;startY=e.clientY;startT=performance.now();startPanX=panX;startPanY=panY;dragX=0;dragY=0;
+    gesture=scale>1?'pan':null;
+  });
+  stage.addEventListener('pointermove',e=>{
+    if(!pointers.has(e.pointerId))return;
+    pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(pointers.size>=2||gesture==='pinch'){
+      if(pointers.size>=2){
+        const [a,b]=[...pointers.values()];
+        const d=dist(a,b)||1,m=mid(a,b);
+        const next=Math.min(4,Math.max(1,startScale*(d/startDist)));
+        const box=current.getBoundingClientRect();
+        const cx=box.left+box.width/2,cy=box.top+box.height/2;
+        const ratio=next/Math.max(scale,0.01);
+        panX=(startPanX+(m.x-cx))*ratio-(m.x-cx);
+        panY=(startPanY+(m.y-cy))*ratio-(m.y-cy);
+        scale=next;applyZoom();
+        gesture='pinch';
+      }
+      e.preventDefault();return;
+    }
+    const dx=e.clientX-startX,dy=e.clientY-startY;
+    if(scale>1||gesture==='pan'){
+      gesture='pan';panX=startPanX+dx;panY=startPanY+dy;applyZoom();e.preventDefault();return;
+    }
+    if(!gesture){
+      if(Math.abs(dx)>12&&Math.abs(dx)>Math.abs(dy)+6)gesture='swipe';
+      else if(dy>16&&dy>Math.abs(dx)*1.2)gesture='dismiss';
+    }
+    if(gesture==='swipe'){dragX=resist(dx);dragY=0;resetZoom();setFrame(dragX,0,false);e.preventDefault()}
+    else if(gesture==='dismiss'){dragX=0;dragY=Math.max(0,dy);setFrame(0,dragY,false);e.preventDefault()}
+  },{passive:false});
+  function endPointer(e){
+    if(!pointers.has(e.pointerId))return;
+    pointers.delete(e.pointerId);
+    if(stage.hasPointerCapture(e.pointerId))try{stage.releasePointerCapture(e.pointerId)}catch{}
+    if(pointers.size>=1&&gesture==='pinch'){
+      const remain=[...pointers.values()][0];
+      startX=remain.x;startY=remain.y;startPanX=panX;startPanY=panY;gesture=scale>1?'pan':null;
+      return;
+    }
+    const now=performance.now(), dx=e.clientX-startX, dy=e.clientY-startY, dt=Math.max(1,now-startT);
+    const isTap=Math.hypot(dx,dy)<12 && now-startT<280;
+    if((gesture==='pinch'||gesture==='pan')&&!isTap){
+      if(scale<=1.02)resetZoom();
+      gesture=null;return;
+    }
+    if(gesture==='dismiss'){
+      const vy=dy/dt;
+      if(dy>110||vy>0.7){resetFrame(true);viewer.close()}
+      else resetFrame(true);
+      gesture=null;return;
+    }
+    if(gesture==='swipe'){
+      const vx=dx/dt, width=Math.max(stage.clientWidth,1);
+      const should= (Math.abs(resist(dx))>Math.min(72,width*0.18) || Math.abs(vx)>0.45) && resist(dx)===dx;
+      if(should)go(dx<0?1:-1,true);
+      else resetFrame(true);
+      gesture=null;return;
+    }
+    // tap / double-tap on the photo
+    if(Math.hypot(dx,dy)<12 && now-startT<280){
+      if(now-lastTap<320 && Math.hypot(e.clientX-lastTapX,e.clientY-lastTapY)<40){
+        lastTap=0;
+        if(scale>1)resetZoom();
+        else{
+          const box=current.getBoundingClientRect();
+          const cx=box.left+box.width/2,cy=box.top+box.height/2;
+          const next=2.5;
+          panX=(e.clientX-cx)*(1-next);panY=(e.clientY-cy)*(1-next);scale=next;applyZoom();
+        }
+      }else{lastTap=now;lastTapX=e.clientX;lastTapY=e.clientY}
+    }
+    gesture=null;
+  }
+  stage.addEventListener('pointerup',endPointer);
+  stage.addEventListener('pointercancel',endPointer);
+  stage.addEventListener('lostpointercapture',e=>{if(pointers.has(e.pointerId))endPointer(e)});
+  // Stop the page behind the dialog from rubber-banding while it is open.
+  viewer.addEventListener('touchmove',e=>{if(viewer.open)e.preventDefault()},{passive:false});
+})();
+
 function selectedPhoto(){const p=projects.find(p=>p.id===photoSelection?.owner),ph=p?.photos.find(ph=>ph.id===photoSelection?.id);return {p,ph}}
 async function savePhotoChanges(change){const {p,ph}=selectedPhoto();if(!p||!ph)throw Error('Photo no longer available');const updated={...p,photos:p.photos.map(item=>item.id===ph.id?{...item,...change}:item)};await persist([updated]);projects[projects.indexOf(p)]=updated;if(current===p.id)renderDetail();else render();return updated}
 $('#originalButton').onclick=()=>{const {ph}=selectedPhoto();if(!ph)return;const original=$('#originalButton').textContent==='Show original';$('#viewerImage').src=original?ph.data:photoData(ph);$('#originalButton').textContent=original?'Show markup':'Show original'};
@@ -125,7 +368,7 @@ $('#exportButton').onclick=()=>{downloadFile(JSON.stringify({format:'johnny-jobc
 $('#importInput').onchange=async e=>{const file=e.target.files[0];if(!file)return;$('#importButton').disabled=true;try{if(cloudStore)throw Error('Import is local-only. Switch to local notebook first. No automatic cloud migration.');if(file.size>150*1024*1024)throw Error('Backup exceeds 150 MB limit');const incoming=validateBackup(JSON.parse(await file.text()));const merged=projects.map(p=>({...p,photos:[...p.photos],logs:[...(p.logs||[])]}));let conflicts=0;for(const p of incoming){const old=merged.find(x=>x.id===p.id);if(!old)merged.push(p);else{const ids=new Set(old.photos.map(ph=>ph.id)),logids=new Set((old.logs||[]).map(l=>l.id));old.photos.push(...p.photos.filter(ph=>!ids.has(ph.id)));old.logs.push(...(p.logs||[]).filter(l=>!logids.has(l.id)));if(old.photos.some(ph=>p.photos.some(x=>x.id===ph.id&&JSON.stringify(x)!==JSON.stringify(ph))))conflicts++}}await persist(merged);projects=merged;$('#settingsDialog').close();render();toast('Imported missing records. Existing versions kept.'+(conflicts?' '+conflicts+' jobs have same-ID differences; original backup kept unchanged.':''))}catch(err){toast('Import failed: '+err.message)}finally{e.target.value='';$('#importButton').disabled=false}};
 // App-shell offline status; project data is never put in the service-worker cache.
 const offlineNote=document.createElement('p');offlineNote.id='offlineStatus';offlineNote.className='notice';offlineNote.textContent='Checking offline support…';$('#settingsDialog').append(offlineNote);
-const versionLabel=document.createElement('span');versionLabel.className='version-label';versionLabel.textContent='CarpenterCam 2.6.3 · Internal crew tool';$('#settingsDialog').append(versionLabel);
+const versionLabel=document.createElement('span');versionLabel.className='version-label';versionLabel.textContent='CarpenterCam 2.7.0 · Internal crew tool';$('#settingsDialog').append(versionLabel);
 async function setupOffline(){if(location.protocol==='file:'){$('#offlineStatus').textContent='File mode: photos save locally, but offline page caching and GPS need HTTPS or localhost.';return}if(!('serviceWorker' in navigator)){$('#offlineStatus').textContent='Offline app cache is not supported in this browser. Export backups regularly.';return}try{await navigator.serviceWorker.register('./sw.js',{scope:'./'});await navigator.serviceWorker.ready;$('#offlineStatus').textContent=(window.jobcamCloudConfigured&&window.jobcamCloudConfigured()?'Works offline. New photos save on this phone and upload to your team’s cloud when you’re back online.':'Offline app ready after this online load. Works without internet.')}catch{$('#offlineStatus').textContent='Offline cache could not be installed. Keep this page open or retry on HTTPS. Local photos are still in browser storage.'}}
 // Optional crew login; never enabled with invented keys, never auto-creates users.
 const cloudDetails=document.createElement('details');cloudDetails.className='cloud-setup';cloudDetails.innerHTML='<summary>Crew login / live setup</summary><p class="caption">Local mode is working now. Live crew mode needs your own Supabase project and invited accounts. No account is created here. Never use a service-role or secret key.</p><form id="cloudConfig"><label class="field">Supabase project URL<input id="supabaseURL" type="url" required placeholder="https://PROJECT.supabase.co" autocomplete="off"></label><label class="field">Publishable / anon key<input id="supabaseKey" required placeholder="Public browser key only" autocomplete="off"></label><button class="secondary wide" type="submit">Connect crew service</button></form><form id="cloudLogin" hidden><label class="field">Invited account email<input id="crewEmail" type="email" required autocomplete="email"></label><button class="primary wide" type="submit">Email me a sign-in link</button><p class="caption">Existing invited accounts only. Open the link on this phone/browser.</p></form><div class="metadata-tools"><button class="secondary" id="cloudRefresh" hidden>Refresh crew photos</button><button class="secondary" id="localMode" hidden>Use local notebook</button><button class="secondary" id="cloudSignOut" hidden>Sign out</button></div><p class="v2-status" id="cloudStatus" role="status">Local notebook · no crew connection configured.</p>';$('#offlineStatus').before(cloudDetails);
