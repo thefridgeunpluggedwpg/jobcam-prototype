@@ -16,26 +16,43 @@ function addDialog(id,label,body){const d=document.createElement('dialog');d.id=
 const style=document.createElement('style');style.textContent=`
 .v2-tools{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:18px 0}.v2-tools button{font-size:13px;padding:11px 9px}.gps-line{display:block;font-size:11px;margin-top:8px;color:var(--green);overflow-wrap:anywhere}.gps-line a{display:inline-flex;min-height:44px;align-items:center;color:var(--green)}.metadata-tools{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}.metadata-tools button{font-size:13px}.check-label{display:flex;align-items:center;gap:10px;min-height:46px;font-size:13px}.check-label input{width:22px;min-height:22px;height:22px;flex:none;accent-color:var(--wood)}.v2-status{font-size:12px;color:var(--muted);margin:10px 0;line-height:1.7}.daily-entry{border:1px solid var(--line);background:var(--panel);border-radius:12px;padding:15px;margin-top:12px}.daily-entry p{font-size:13px;white-space:pre-wrap;overflow-wrap:anywhere;margin-top:9px}.daily-entry h3{font-size:14px}.report-controls{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}.report-controls label{font-size:12px}.report-controls input{margin-top:6px}.viewer-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}.viewer-actions button{min-height:46px;font-size:13px}.viewer-actions a{color:var(--green);padding:10px}#viewer .viewer-stage{height:calc(100% - 235px);min-height:150px}#viewer .viewer-caption{white-space:pre-wrap;margin:10px auto;max-width:650px}#annotationDialog{max-width:950px}#annotationCanvas{display:block;width:100%;height:auto;touch-action:none;border:1px solid var(--line);border-radius:10px;background:var(--panel)}.mark-tools{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center}.mark-tools button{padding:9px 14px}.mark-tools button[aria-pressed=true]{background:var(--wood);color:var(--bg)}.mark-tools label{font-size:12px}.mark-tools input[type=color]{width:48px;height:46px;padding:4px}.mark-tools select{width:85px}.text-position{display:grid;grid-template-columns:1fr 1fr;gap:10px}.text-position label{font-size:12px}.text-position input{margin-top:5px}#textPlacement{margin:14px 0}.select-pair{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}.select-pair label{font-size:12px}.select-pair select{font-size:14px;margin-top:5px}.side-compare{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}.side-compare figure{margin:0;min-width:0}.side-compare img{width:100%;aspect-ratio:1.2;object-fit:contain;background:var(--panel);border-radius:10px}.side-compare figcaption{text-align:center;font-size:12px}.gallery-select{display:flex;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}.gallery-select input{width:22px;height:22px;min-height:22px;flex:none}.gallery-select img{width:70px;height:60px;object-fit:cover;border-radius:7px}.gallery-select span{font-size:12px;overflow-wrap:anywhere}.portfolio-open{margin:10px 0 20px}#portfolioDialog{width:100vw;height:100dvh;max-width:none;max-height:100dvh;border:0;border-radius:0;padding:20px;background:var(--bg)}.portfolio-frame{max-width:1100px;margin:auto}.portfolio-frame img{width:100%;height:52dvh;object-fit:contain;background:#101512;border-radius:14px}.portfolio-frame h2{margin-top:15px;font-size:28px}.portfolio-frame p{margin-top:10px;max-width:70ch;white-space:pre-wrap;overflow-wrap:anywhere}.portfolio-frame .toolbar{margin-bottom:15px}.portfolio-navigation{display:grid;grid-template-columns:1fr auto 1fr;gap:12px;align-items:center;margin:18px 0}.portfolio-navigation span{font-size:12px;color:var(--muted)}.version-label{display:block;text-align:center;color:var(--muted);font-size:12px;margin-top:20px}details.cloud-setup{border:1px solid var(--line);padding:12px;border-radius:12px;margin:18px 0}details.cloud-setup summary{min-height:44px;cursor:pointer;font-weight:600}#cloudStatus{white-space:pre-wrap;overflow-wrap:anywhere}#cloudConfig input{font-size:16px}button:active{filter:brightness(.9)}@media(max-width:360px){.container{padding-left:16px;padding-right:16px}.v2-tools{grid-template-columns:1fr}}@media(min-width:700px){.portfolio-frame img{height:60dvh}}
 .danger{background:#7e0a1d;color:#fff;border:2px solid #ff5c74;border-bottom-width:4px;border-radius:10px;font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:18px;letter-spacing:.8px;text-transform:uppercase;padding:13px 18px;min-height:52px;display:inline-flex;align-items:center;justify-content:center;gap:8px}.danger:active{transform:translateY(2px);border-bottom-width:2px}.danger-outline{background:transparent;color:#ff8a9a;border:2px solid #c8102e;border-radius:10px;font-weight:700;padding:11px 16px;display:inline-flex;align-items:center;justify-content:center;gap:6px}.photo-meta .photo-delete{width:100%;min-height:44px;margin-top:7px;font-size:13px;padding:6px 8px}.delete-preview{display:block;width:100%;max-height:220px;object-fit:contain;border-radius:10px;background:#000;margin:4px 0 12px}#deletePhotoText{font-size:16px;color:var(--ink)}.detail-problem{border-left-color:var(--red)!important;color:var(--ink)!important;font-size:14px!important}.app-problem{position:fixed;left:12px;right:12px;bottom:calc(92px + env(safe-area-inset-bottom));z-index:9000;display:flex;gap:10px;align-items:center;background:#3a0d14;color:#fff;border:2px solid #ff5c74;border-radius:12px;padding:10px 12px;font-size:14px;box-shadow:0 8px 30px #0009}.app-problem[hidden]{display:none}.app-problem span{flex:1}.app-problem button{min-height:40px;width:40px;border-radius:10px;background:transparent;color:#fff;border:1px solid #fff6;font-size:20px}.photo-meta .photo-date{width:100%;min-height:44px;margin-top:7px;font-size:13px;padding:6px 8px}.time-pick{border:2px solid var(--line);border-radius:12px;padding:10px 12px;margin:12px 0;background:var(--panel)}.time-pick>strong{display:block;font:700 15px 'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px}.time-seg{display:flex;gap:6px;flex-wrap:wrap}.time-seg button{flex:1 1 0;min-height:46px;padding:6px 8px;font-size:14px;border:2px solid #6b5848;background:var(--panel2);border-radius:10px;font-weight:700;color:var(--ink)}.time-seg button[aria-pressed=true]{background:var(--red);border-color:#fff;color:#fff}.time-pick input{margin-top:8px}.date-edit-preview{display:block;width:100%;max-height:200px;object-fit:contain;border-radius:10px;background:#000;margin:4px 0 12px}#dateEditForm input{font-size:18px;min-height:52px}.delete-actions{display:grid;gap:10px;margin-top:16px}.delete-actions button{min-height:54px;font-size:18px}
-/* v2.7.1 swipeable job photo viewer */
+/* v2.7.2 full-bleed swipeable job photo viewer */
 html.viewer-open,html.viewer-open body{overflow:hidden;overscroll-behavior:none}
-#viewer{overflow:hidden!important;overscroll-behavior:none;touch-action:none;width:100%;max-width:none;height:100dvh;max-height:100dvh;margin:0;border:0!important;border-radius:0;border-top:0!important;padding:calc(10px + env(safe-area-inset-top,0px)) calc(10px + env(safe-area-inset-right,0px)) calc(12px + env(safe-area-inset-bottom,0px)) calc(10px + env(safe-area-inset-left,0px));background:#090e0b!important}
-#viewer .toolbar{margin-bottom:8px;gap:8px;align-items:center}
-#viewer .toolbar #viewerTitle{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-#viewer .viewer-counter{flex:1;text-align:center;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
-#viewer .toolbar .icon-btn{width:48px;min-width:48px;min-height:48px;flex:none;z-index:3}
-#viewer .viewer-stage{display:block;position:relative;overflow:hidden;height:calc(100% - 250px - env(safe-area-inset-bottom,0px));min-height:160px;touch-action:none;overscroll-behavior:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
+#viewer{overflow:hidden!important;overscroll-behavior:none;touch-action:none;width:100%;max-width:none;height:100dvh;max-height:100dvh;margin:0;border:0!important;border-radius:0;border-top:0!important;padding:0!important;background:#090e0b!important}
+#viewer .toolbar{position:absolute;top:0;left:0;right:0;z-index:4;display:flex;margin:0;gap:8px;align-items:center;box-sizing:border-box;padding:calc(6px + env(safe-area-inset-top,0px)) calc(8px + env(safe-area-inset-right,0px)) 16px calc(8px + env(safe-area-inset-left,0px));background:linear-gradient(180deg,#090e0bf0 0%,#090e0ba8 55%,transparent);color:#f4eee4;pointer-events:none}
+#viewer .toolbar > *{pointer-events:auto}
+#viewer .toolbar #viewerTitle{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#f4eee4;font-size:15px}
+#viewer .viewer-counter{flex:1;text-align:center;font-size:13px;color:#c9d4cc;font-variant-numeric:tabular-nums;white-space:nowrap}
+#viewer .toolbar .icon-btn{width:48px;min-width:48px;min-height:48px;flex:none;z-index:3;color:#f4eee4;border-color:#ffffff44;background:#00000066}
+#viewer .viewer-stage{display:block!important;position:absolute;inset:0;width:100%;height:100%!important;min-height:0;touch-action:none;overscroll-behavior:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
 #viewer .viewer-frame{display:flex;width:300%;min-width:300%;max-width:none;height:100%;margin:0;padding:0;border:0;transform:translate3d(-33.333%,0,0);will-change:transform}
 #viewer .viewer-frame.is-animating{transition:transform 240ms ease-out}
 @media (prefers-reduced-motion:reduce){#viewer .viewer-frame.is-animating{transition:none}}
 #viewer .viewer-frame>*{box-sizing:border-box;flex:0 0 33.333%;width:33.333%;min-width:0;max-width:33.333%;height:100%;margin:0;padding:0;display:flex;align-items:center;justify-content:center;overflow:hidden;pointer-events:none}
 #viewer .viewer-peek,#viewer .viewer-current img,#viewer #viewerImage{max-width:100%;max-height:100%;object-fit:contain;-webkit-user-drag:none;pointer-events:none}
 #viewer .viewer-peek.is-empty{visibility:hidden}
-#viewer .viewer-current{touch-action:none}
-#viewer .viewer-nav{position:absolute;top:50%;transform:translateY(-50%);z-index:2;width:48px;min-width:48px;min-height:48px;height:48px;padding:0;border-radius:50%;background:#000000b3;border:1px solid #ffffff55;color:#fff;display:grid;place-items:center}
-#viewer .viewer-nav-prev{left:6px}
-#viewer .viewer-nav-next{right:6px}
+#viewer .viewer-current{touch-action:none;width:100%;height:100%}
+#viewer .viewer-nav{position:absolute;top:50%;transform:translateY(-50%);z-index:2;width:36px;min-width:36px;min-height:36px;height:36px;padding:0;border-radius:50%;background:#000000b3;border:1px solid #ffffff55;color:#fff;display:grid;place-items:center}
+#viewer .viewer-nav-prev{left:calc(6px + env(safe-area-inset-left,0px))}
+#viewer .viewer-nav-next{right:calc(6px + env(safe-area-inset-right,0px))}
 #viewer .viewer-nav:disabled{opacity:.35}
-#viewer .viewer-caption{margin:10px auto 0;max-width:650px;padding:0 8px}
+#viewer.is-touch .viewer-nav{display:none}
+#viewer .viewer-bottom{position:absolute;left:0;right:0;bottom:0;z-index:4;display:flex;flex-direction:column;gap:4px;box-sizing:border-box;padding:14px calc(8px + env(safe-area-inset-right,0px)) calc(8px + env(safe-area-inset-bottom,0px)) calc(8px + env(safe-area-inset-left,0px));background:linear-gradient(0deg,#090e0bf5 0%,#090e0bd8 62%,transparent);pointer-events:none}
+#viewer .viewer-bottom > *{pointer-events:auto}
+#viewer .viewer-caption{margin:0 auto;max-width:100%;padding:0 4px;font-size:11px;line-height:1.3;color:#c9d4cc;text-align:center;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;white-space:pre-wrap}
+#viewer .viewer-actions{display:flex;flex-wrap:nowrap;justify-content:space-around;align-items:stretch;gap:2px;margin:0}
+#viewer .viewer-tool{flex:1 1 0;min-width:0;min-height:52px;padding:4px 2px 5px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;background:transparent;border:0;border-radius:10px;color:#f4eee4;font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:11px;letter-spacing:.5px;text-transform:uppercase;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}
+#viewer .viewer-tool svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+#viewer .viewer-tool-danger{color:#ff8a9a}
+#viewer .viewer-tool[hidden]{display:none!important}
+#viewer .viewer-reveal{display:none;position:absolute;left:50%;bottom:calc(10px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:5;width:52px;min-width:52px;min-height:36px;height:36px;padding:0;border-radius:20px;background:#000000c4;border:1px solid #ffffff55;color:#fff;place-items:center;-webkit-tap-highlight-color:transparent}
+#viewer .viewer-reveal svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+#viewer.is-chrome-hidden .toolbar,#viewer.is-chrome-hidden .viewer-bottom,#viewer.is-chrome-hidden .viewer-nav{opacity:0;visibility:hidden;pointer-events:none;transition:opacity 160ms ease,visibility 160ms ease}
+#viewer.is-chrome-hidden .toolbar *,#viewer.is-chrome-hidden .viewer-bottom *,#viewer.is-chrome-hidden .viewer-nav{pointer-events:none!important}
+#viewer.is-chrome-hidden .viewer-reveal{display:grid;visibility:visible;pointer-events:auto}
+#viewer.is-chrome-hidden .viewer-reveal[hidden]{display:none}
+@media (prefers-reduced-motion:reduce){#viewer.is-chrome-hidden .toolbar,#viewer.is-chrome-hidden .viewer-bottom,#viewer.is-chrome-hidden .viewer-nav{transition:none}}
+
 `;document.head.append(style);
 // Small storage boundary: same shape for browser-local and shared crew data.
 // Job records are normalised on load so an odd or older record (missing photos/tags, number id, cloud row without local fields) can never stop a job from opening.
@@ -61,9 +78,12 @@ processPhoto=async function(file){skipStamp=true;let ph;try{ph=await baseProcess
 const gpsArea=document.createElement('div');gpsArea.innerHTML='<button class="secondary wide" id="gpsButton">Attach current device GPS</button><p class="v2-status" id="gpsStatus" role="status"></p>';$('#pendingPhotos').before(gpsArea);
 $('#gpsButton').onclick=async()=>{const b=$('#gpsButton');if(!navigator.geolocation||!isSecureContext){$('#gpsStatus').textContent='GPS unavailable here. Photos can still be saved without it. Use HTTPS or localhost.';return}b.disabled=true;$('#gpsStatus').textContent='Finding location… You can deny permission and still save photos.';try{const pos=await new Promise((resolve,reject)=>navigator.geolocation.getCurrentPosition(resolve,reject,{enableHighAccuracy:true,timeout:10000,maximumAge:0}));uploadGPS={lat:pos.coords.latitude,lng:pos.coords.longitude,accuracy:pos.coords.accuracy,at:new Date(pos.timestamp||Date.now()).toISOString(),source:'Device at upload'};pending.forEach(ph=>ph.gps={...uploadGPS});$('#gpsStatus').textContent='Attached to this batch: '+displayGPS(uploadGPS)+' · device at upload, not historical photo location.'}catch(err){uploadGPS=null;pending.forEach(ph=>ph.gps=null);$('#gpsStatus').textContent=(err.code===1?'Location denied.':err.code===3?'Location timed out.':'Location unavailable.')+' Photos will save without GPS.'}finally{b.disabled=false}};
 // Viewer tools: original image remains in ph.data; marked-up result is a separate field.
-const viewerActions=document.createElement('div');viewerActions.className='viewer-actions';viewerActions.innerHTML='<button class="secondary" id="annotateButton">Mark up photo</button><button class="secondary" id="photoTagsButton">Tags & caption</button><button class="secondary" id="originalButton">Show original</button><button class="secondary" id="editDateButton" type="button">Edit date</button><button class="danger-outline" id="deletePhotoButton" type="button">Delete photo</button>';$('#viewerCaption').after(viewerActions);
+function viewerToolLabel(btn,text){if(!btn)return '';if(text!=null){btn.dataset.label=text;const lab=btn.querySelector('[data-tool-label]');if(lab)lab.textContent=text;else btn.textContent=text;return text}return btn.dataset.label||btn.querySelector('[data-tool-label]')?.textContent||(btn.textContent||'').trim()}
+const toolSvg=n=>'<svg viewBox="0 0 24 24" aria-hidden="true">'+n+'</svg>';
+const viewerActions=document.createElement('div');viewerActions.className='viewer-actions';viewerActions.innerHTML='<button class="viewer-tool" id="annotateButton" type="button">'+toolSvg('<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>')+'<span data-tool-label>Mark up</span></button><button class="viewer-tool" id="photoTagsButton" type="button">'+toolSvg('<path d="M20.6 13.4 12.8 5.6A2 2 0 0 0 11.4 5H5v6.4a2 2 0 0 0 .6 1.4l7.8 7.8a2 2 0 0 0 2.8 0l4.4-4.4a2 2 0 0 0 0-2.8Z"/><circle cx="8.5" cy="8.5" r="1.2"/>')+'<span data-tool-label>Tags</span></button><button class="viewer-tool" id="originalButton" type="button">'+toolSvg('<rect x="3" y="5" width="14" height="14" rx="2"/><path d="M9 9h12v12H9"/>')+'<span data-tool-label>Original</span></button><button class="viewer-tool" id="editDateButton" type="button">'+toolSvg('<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>')+'<span data-tool-label>Date</span></button><button class="viewer-tool viewer-tool-danger" id="deletePhotoButton" type="button">'+toolSvg('<path d="M4 7h16M9 7V5h6v2m-8 0v12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V7"/>')+'<span data-tool-label>Delete</span></button>';
+$('#viewerCaption').after(viewerActions);
 openPhoto=function(owner,id){openJobViewer(owner,id)};
-/* v2.7.1: swipeable full-screen viewer for every photo on the job, in grid order. */
+/* v2.7.2: swipeable full-screen viewer for every photo on the job, in grid order. */
 (function(){
   const viewer=$('#viewer'), stage=viewer&&viewer.querySelector('.viewer-stage'), img=$('#viewerImage');
   if(!viewer||!stage||!img||viewer.dataset.galleryReady)return;
@@ -82,6 +102,40 @@ openPhoto=function(owner,id){openJobViewer(owner,id)};
   const prevBtn=document.createElement('button');prevBtn.type='button';prevBtn.id='viewerPrev';prevBtn.className='viewer-nav viewer-nav-prev';prevBtn.setAttribute('aria-label','Previous photo');prevBtn.innerHTML=chevron('prev');
   const nextBtn=document.createElement('button');nextBtn.type='button';nextBtn.id='viewerNext';nextBtn.className='viewer-nav viewer-nav-next';nextBtn.setAttribute('aria-label','Next photo');nextBtn.innerHTML=chevron('next');
   stage.append(prevBtn,nextBtn);
+  const bottom=document.createElement('div');
+  bottom.id='viewerBottom';
+  bottom.className='viewer-bottom';
+  const cap=$('#viewerCaption');
+  if(cap){cap.replaceWith(bottom);bottom.append(cap)}else viewer.append(bottom);
+  if(viewerActions){if(viewerActions.parentNode&&viewerActions.parentNode!==bottom)viewerActions.remove();bottom.append(viewerActions)}
+  const reveal=document.createElement('button');
+  reveal.type='button';
+  reveal.id='viewerReveal';
+  reveal.className='viewer-reveal';
+  reveal.setAttribute('aria-label','Show photo options');
+  reveal.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 14l6-6 6 6"/></svg>';
+  viewer.append(reveal);
+  let chromeOn=true, tapTimer=null;
+  function setChrome(on){
+    chromeOn=!!on;
+    viewer.classList.toggle('is-chrome-hidden',!chromeOn);
+    reveal.hidden=chromeOn;
+    reveal.setAttribute('aria-expanded',chromeOn?'true':'false');
+  }
+  function toggleChrome(){setChrome(!chromeOn)}
+  function cancelTap(){if(tapTimer){clearTimeout(tapTimer);tapTimer=null}}
+  reveal.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();cancelTap();setChrome(true)});
+  setChrome(true);
+  viewer.classList.toggle('is-touch',('ontouchstart' in window)||((navigator.maxTouchPoints||0)>0));
+  function onViewport(){
+    if(!viewer.open)return;
+    applyZoom();
+    if(!animating)resetFrame(false);
+  }
+  window.addEventListener('resize',onViewport);
+  window.addEventListener('orientationchange',()=>{setTimeout(onViewport,60);setTimeout(onViewport,300)});
+  if(window.visualViewport)visualViewport.addEventListener('resize',onViewport);
+
 
   let list=[], index=0, owner=null, scale=1, panX=0, panY=0, animating=false, scrollLockY=0;
   const pointers=new Map();
@@ -130,7 +184,7 @@ openPhoto=function(owner,id){openJobViewer(owner,id)};
     const canEdit=!cloudProfile||cloudProfile.role!=='sub'||ph.cloudUserId===cloudProfile.id;
     const ab=$('#annotateButton'),tb=$('#photoTagsButton'),ob=$('#originalButton'),db=$('#deletePhotoButton'),eb=$('#editDateButton');
     if(ab)ab.hidden=!canEdit;if(tb)tb.hidden=!canEdit;
-    if(ob){ob.hidden=!ph.annotatedData;ob.textContent='Show original'}
+    if(ob){ob.hidden=!ph.annotatedData;ob.dataset.mode='photo';viewerToolLabel(ob,'Original')}
     if(db)db.hidden=!canDeletePhoto(ph);if(eb)eb.hidden=!canDeletePhoto(ph);
   }
   function chrome(){
@@ -149,7 +203,7 @@ openPhoto=function(owner,id){openJobViewer(owner,id)};
     const next=index+delta;
     if(next<0||next>=list.length){resetFrame(true);return}
     const apply=()=>{
-      animating=false;index=next;resetZoom();paint(list[index].id);chrome();
+      animating=false;index=next;cancelTap();resetZoom();paint(list[index].id);chrome();
       frame.classList.remove('is-animating');resetFrame(false);
     };
     if(animate&&!reduce()){
@@ -170,7 +224,7 @@ openPhoto=function(owner,id){openJobViewer(owner,id)};
     const found=list.findIndex(ph=>ph.id===photoId);
     index=found<0?0:found;
     if(!list.length)return;
-    resetZoom();paint(list[index].id);chrome();resetFrame(false);
+    cancelTap();resetZoom();setChrome(true);paint(list[index].id);chrome();resetFrame(false);
     if(!viewer.open){lockPage(true);viewer.showModal();pushViewerHistory()}
   };
   prevBtn.onclick=()=>{if(!animating)go(-1,true)};
@@ -186,7 +240,7 @@ openPhoto=function(owner,id){openJobViewer(owner,id)};
     }
   });
   viewer.addEventListener('close',()=>{
-    resetZoom();pointers.clear();gesture=null;lockPage(false);dropViewerHistory();
+    cancelTap();resetZoom();setChrome(true);pointers.clear();gesture=null;lockPage(false);dropViewerHistory();
   });
   window.addEventListener('popstate',()=>{
     if(viewer.open)viewer.close();
@@ -237,7 +291,7 @@ openPhoto=function(owner,id){openJobViewer(owner,id)};
       if(Math.abs(dx)>12&&Math.abs(dx)>Math.abs(dy)+6)gesture='swipe';
       else if(dy>16&&dy>Math.abs(dx)*1.2)gesture='dismiss';
     }
-    if(gesture==='swipe'){dragX=resist(dx);dragY=0;resetZoom();setFrame(dragX,0,false);e.preventDefault()}
+    if(gesture==='swipe'){cancelTap();dragX=resist(dx);dragY=0;resetZoom();setFrame(dragX,0,false);e.preventDefault()}
     else if(gesture==='dismiss'){dragX=0;dragY=Math.max(0,dy);setFrame(0,dragY,false);e.preventDefault()}
   },{passive:false});
   function endPointer(e){
@@ -268,10 +322,11 @@ openPhoto=function(owner,id){openJobViewer(owner,id)};
       else resetFrame(true);
       gesture=null;return;
     }
-    // tap / double-tap on the photo
+    // Single tap toggles the bars; wait so a double-tap can still zoom.
     if(Math.hypot(dx,dy)<12 && now-startT<280){
       if(now-lastTap<320 && Math.hypot(e.clientX-lastTapX,e.clientY-lastTapY)<40){
         lastTap=0;
+        cancelTap();
         if(scale>1)resetZoom();
         else{
           const box=current.getBoundingClientRect();
@@ -279,7 +334,11 @@ openPhoto=function(owner,id){openJobViewer(owner,id)};
           const next=2.5;
           panX=(e.clientX-cx)*(1-next);panY=(e.clientY-cy)*(1-next);scale=next;applyZoom();
         }
-      }else{lastTap=now;lastTapX=e.clientX;lastTapY=e.clientY}
+      }else{
+        lastTap=now;lastTapX=e.clientX;lastTapY=e.clientY;
+        cancelTap();
+        tapTimer=setTimeout(()=>{tapTimer=null;if(viewer.open)toggleChrome()},300);
+      }
     }
     gesture=null;
   }
@@ -340,7 +399,7 @@ openPhoto=function(owner,id){openJobViewer(owner,id)};
       if(Math.abs(dx)>12&&Math.abs(dx)>Math.abs(dy)+6)gesture='swipe';
       else if(dy>16&&dy>Math.abs(dx)*1.2)gesture='dismiss';
     }
-    if(gesture==='swipe'){dragX=resist(dx);dragY=0;resetZoom();setFrame(dragX,0,false);e.preventDefault()}
+    if(gesture==='swipe'){cancelTap();dragX=resist(dx);dragY=0;resetZoom();setFrame(dragX,0,false);e.preventDefault()}
     else if(gesture==='dismiss'){dragX=0;dragY=Math.max(0,dy);setFrame(0,dragY,false);e.preventDefault()}
   },{passive:false});
   stage.addEventListener('touchend',e=>{
@@ -377,7 +436,7 @@ openPhoto=function(owner,id){openJobViewer(owner,id)};
 })();
 function selectedPhoto(){const p=projects.find(p=>p.id===photoSelection?.owner),ph=p?.photos.find(ph=>ph.id===photoSelection?.id);return {p,ph}}
 async function savePhotoChanges(change){const {p,ph}=selectedPhoto();if(!p||!ph)throw Error('Photo no longer available');const updated={...p,photos:p.photos.map(item=>item.id===ph.id?{...item,...change}:item)};await persist([updated]);projects[projects.indexOf(p)]=updated;if(current===p.id)renderDetail();else render();return updated}
-$('#originalButton').onclick=()=>{const {ph}=selectedPhoto();if(!ph)return;const original=$('#originalButton').textContent==='Show original';$('#viewerImage').src=original?ph.data:photoData(ph);$('#originalButton').textContent=original?'Show markup':'Show original'};
+$('#originalButton').onclick=()=>{const {ph}=selectedPhoto();if(!ph)return;const btn=$('#originalButton');const showOrig=btn.dataset.mode!=='original';$('#viewerImage').src=showOrig?ph.data:photoData(ph);btn.dataset.mode=showOrig?'original':'photo';viewerToolLabel(btn,showOrig?'Markup':'Original')};
 addDialog('photoMetaDialog','Photo details','<form id="photoMetaForm"><label class="field">Caption<textarea id="photoCaption" maxlength="500" placeholder="e.g. Cedar rail detail for the estimate"></textarea></label><label class="field">Photo tags<input id="photoTags" maxlength="500" placeholder="cedar, railings, built-in seating"><small>Separate tags with commas. Searchable across all jobs.</small></label><label class="check-label"><input type="checkbox" id="featuredAfter"> Best After photo for portfolio</label><button class="primary wide" type="submit">Save photo details</button></form>');
 $('#photoTagsButton').onclick=()=>{const {p,ph}=selectedPhoto();if(!ph)return;$('#viewer').close();$('#photoCaption').value=ph.caption||'';$('#photoTags').value=(ph.tags||[]).join(', ');$('#featuredAfter').checked=p.featuredPhotoId===ph.id;$('#featuredAfter').disabled=ph.phase!=='After'||cloudProfile?.role==='sub';$('#photoMetaDialog').showModal()};
 $('#photoMetaForm').onsubmit=async e=>{e.preventDefault();const b=e.target.querySelector('button[type=submit]');b.disabled=true;try{await savePhotoChanges({caption:$('#photoCaption').value.trim(),tags:cleanTags($('#photoTags').value)});const {p,ph}=selectedPhoto();if(cloudProfile?.role!=='sub'&&ph.phase==='After'&&($('#featuredAfter').checked||p.featuredPhotoId===ph.id)){const updated={...p,featuredPhotoId:$('#featuredAfter').checked?ph.id:''};await persist([updated]);projects[projects.indexOf(p)]=updated;render()}$('#photoMetaDialog').close();toast('Photo details saved.')}catch(err){storageError(err)}finally{b.disabled=false}};
@@ -457,7 +516,7 @@ $('#exportButton').onclick=()=>{downloadFile(JSON.stringify({format:'johnny-jobc
 $('#importInput').onchange=async e=>{const file=e.target.files[0];if(!file)return;$('#importButton').disabled=true;try{if(cloudStore)throw Error('Import is local-only. Switch to local notebook first. No automatic cloud migration.');if(file.size>150*1024*1024)throw Error('Backup exceeds 150 MB limit');const incoming=validateBackup(JSON.parse(await file.text()));const merged=projects.map(p=>({...p,photos:[...p.photos],logs:[...(p.logs||[])]}));let conflicts=0;for(const p of incoming){const old=merged.find(x=>x.id===p.id);if(!old)merged.push(p);else{const ids=new Set(old.photos.map(ph=>ph.id)),logids=new Set((old.logs||[]).map(l=>l.id));old.photos.push(...p.photos.filter(ph=>!ids.has(ph.id)));old.logs.push(...(p.logs||[]).filter(l=>!logids.has(l.id)));if(old.photos.some(ph=>p.photos.some(x=>x.id===ph.id&&JSON.stringify(x)!==JSON.stringify(ph))))conflicts++}}await persist(merged);projects=merged;$('#settingsDialog').close();render();toast('Imported missing records. Existing versions kept.'+(conflicts?' '+conflicts+' jobs have same-ID differences; original backup kept unchanged.':''))}catch(err){toast('Import failed: '+err.message)}finally{e.target.value='';$('#importButton').disabled=false}};
 // App-shell offline status; project data is never put in the service-worker cache.
 const offlineNote=document.createElement('p');offlineNote.id='offlineStatus';offlineNote.className='notice';offlineNote.textContent='Checking offline support…';$('#settingsDialog').append(offlineNote);
-const versionLabel=document.createElement('span');versionLabel.className='version-label';versionLabel.textContent='CarpenterCam 2.7.1 · Internal crew tool';$('#settingsDialog').append(versionLabel);
+const versionLabel=document.createElement('span');versionLabel.className='version-label';versionLabel.textContent='CarpenterCam 2.7.2 · Internal crew tool';$('#settingsDialog').append(versionLabel);
 async function setupOffline(){if(location.protocol==='file:'){$('#offlineStatus').textContent='File mode: photos save locally, but offline page caching and GPS need HTTPS or localhost.';return}if(!('serviceWorker' in navigator)){$('#offlineStatus').textContent='Offline app cache is not supported in this browser. Export backups regularly.';return}try{await navigator.serviceWorker.register('./sw.js',{scope:'./'});await navigator.serviceWorker.ready;$('#offlineStatus').textContent=(window.jobcamCloudConfigured&&window.jobcamCloudConfigured()?'Works offline. New photos save on this phone and upload to your team’s cloud when you’re back online.':'Offline app ready after this online load. Works without internet.')}catch{$('#offlineStatus').textContent='Offline cache could not be installed. Keep this page open or retry on HTTPS. Local photos are still in browser storage.'}}
 // Optional crew login; never enabled with invented keys, never auto-creates users.
 const cloudDetails=document.createElement('details');cloudDetails.className='cloud-setup';cloudDetails.innerHTML='<summary>Crew login / live setup</summary><p class="caption">Local mode is working now. Live crew mode needs your own Supabase project and invited accounts. No account is created here. Never use a service-role or secret key.</p><form id="cloudConfig"><label class="field">Supabase project URL<input id="supabaseURL" type="url" required placeholder="https://PROJECT.supabase.co" autocomplete="off"></label><label class="field">Publishable / anon key<input id="supabaseKey" required placeholder="Public browser key only" autocomplete="off"></label><button class="secondary wide" type="submit">Connect crew service</button></form><form id="cloudLogin" hidden><label class="field">Invited account email<input id="crewEmail" type="email" required autocomplete="email"></label><button class="primary wide" type="submit">Email me a sign-in link</button><p class="caption">Existing invited accounts only. Open the link on this phone/browser.</p></form><div class="metadata-tools"><button class="secondary" id="cloudRefresh" hidden>Refresh crew photos</button><button class="secondary" id="localMode" hidden>Use local notebook</button><button class="secondary" id="cloudSignOut" hidden>Sign out</button></div><p class="v2-status" id="cloudStatus" role="status">Local notebook · no crew connection configured.</p>';$('#offlineStatus').before(cloudDetails);
